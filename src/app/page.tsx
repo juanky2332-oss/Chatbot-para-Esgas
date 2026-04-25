@@ -15,7 +15,7 @@ export default function Home() {
                     ESGAS <span className="text-[#00D1FF]">AI Assistant</span>
                 </h1>
                 <p className="text-slate-500 max-w-md mx-auto mb-10">
-                    Tu experto en soluciones técnicas y productos de propano.
+                    Tu experto en rodamientos, transmisiones de potencia y suministros industriales.
                 </p>
 
                 <LeanRobot />

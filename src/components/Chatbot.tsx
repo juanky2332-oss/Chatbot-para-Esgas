@@ -1,147 +1,528 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+
+interface Message {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+const WEBHOOK_URL =
+    'https://paneln8n.transformaconia.com/webhook/031ab1e6-d64e-41f0-b03e-f5c0681a6491';
+
+function generateSessionId() {
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
+
+function renderMarkdown(text: string): string {
+    return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br/>');
+}
+
+const WELCOME_MESSAGE: Message = {
+    role: 'assistant',
+    content:
+        '¡Hola! Soy el asistente virtual de **ESGAS**, especialista en rodamientos, transmisiones de potencia y suministros industriales.\n\n¿En qué puedo ayudarte hoy?',
+};
+
+const QUICK_SUGGESTIONS = [
+    '¿Qué rodamientos vendéis?',
+    'Equivalente de SKF 6204',
+    'Rodamiento para motor eléctrico',
+    'Precios y disponibilidad',
+];
 
 export default function Chatbot() {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const iframeRef = useRef<HTMLIFrameElement>(null);
     const [isOpen, setIsOpen] = useState(false);
-    const [isReady, setIsReady] = useState(false);
+    const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+    const [input, setInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [hasOpened, setHasOpened] = useState(false);
+    const sessionId = useRef(generateSessionId());
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        // 1. PUENTE DE COMUNICACION
-        const handleOpenChat = () => {
-            if (iframeRef.current?.contentWindow) {
-                iframeRef.current.contentWindow.postMessage('OPEN_CHAT_EXTERNAL', '*');
-            }
-        };
-
-        // 2. SISTEMA DE REDIMENSIONADO RESPONSIVE
-        const handleMessage = (event: MessageEvent) => {
-            if (event.data && event.data.type === 'FLOWNEXION_RESIZE') {
-                const container = containerRef.current;
-                const iframe = iframeRef.current;
-
-                if (container && iframe) {
-                    // Fade in logic
-                    if (container.style.opacity === '0') {
-                        container.style.transition = 'opacity 0.3s ease';
-                        container.style.opacity = '1';
-                        setIsReady(true);
-                    }
-
-                    const { isOpen: openState, showTooltip } = event.data;
-                    setIsOpen(openState);
-
-                    const isMobile = window.innerWidth < 768;
-
-                    // ALTO
-                    let height;
-                    if (openState) {
-                        height = isMobile ? '100dvh' : '750px';
-                    } else {
-                        // Aumentamos a 250/140px según tooltip
-                        height = showTooltip ? '250px' : '140px';
-                    }
-
-                    // ANCHO
-                    let width;
-                    if (openState) {
-                        width = isMobile ? '100%' : '450px';
-                    } else {
-                        width = showTooltip ? '350px' : '140px';
-                    }
-
-                    // Apply styles
-                    container.style.width = width;
-                    container.style.height = height;
-                    container.style.bottom = '0px';
-                    container.style.right = '0px';
-
-                    if (openState) {
-                        container.style.zIndex = '2147483647';
-                        iframe.style.pointerEvents = 'all';
-                        if (isMobile) {
-                            container.style.maxHeight = '100%';
-                            container.style.maxWidth = '100%';
-                            container.style.borderRadius = '0';
-                        }
-                    } else {
-                        container.style.zIndex = '999999';
-                        iframe.style.pointerEvents = 'all';
-                        // Reseteamos estilos de móvil
-                        container.style.maxHeight = '';
-                        container.style.maxWidth = '';
-                        container.style.borderRadius = '';
-                    }
-                }
-            }
-        };
-
-        window.addEventListener('open-chat', handleOpenChat);
-        window.addEventListener('message', handleMessage);
-
-        return () => {
-            window.removeEventListener('open-chat', handleOpenChat);
-            window.removeEventListener('message', handleMessage);
-        };
+    const openChat = useCallback(() => {
+        setIsOpen(true);
+        setHasOpened(true);
     }, []);
 
-    return (
-        <div
-            id="flownexion-container"
-            ref={containerRef}
-            className="fixed bottom-0 right-0 z-[999999] flex flex-col items-end justify-end"
-            style={{
-                position: 'fixed',
-                bottom: '0px',
-                right: '0px',
-                width: '350px',
-                height: '140px',
-                zIndex: 999999,
-                background: 'transparent',
-                pointerEvents: 'none',
-                opacity: 0,
-                transition: 'width 0.3s ease, height 0.3s ease, opacity 0.3s ease',
-            }}
-        >
-            <iframe
-                id="flownexion-chat"
-                ref={iframeRef}
-                src="https://flownexion-chatbot-ejemplo.vercel.app/?widget=true"
-                title="Chatbot Flownexion"
-                style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none',
-                    overflow: 'hidden',
-                    background: 'transparent',
-                    pointerEvents: 'all',
-                    colorScheme: 'normal',
-                }}
-                allow="microphone; clipboard-write"
-                allowTransparency={true}
-            />
+    useEffect(() => {
+        const handleOpenChat = () => openChat();
+        window.addEventListener('open-chat', handleOpenChat);
+        return () => window.removeEventListener('open-chat', handleOpenChat);
+    }, [openChat]);
 
-            {/* 
-        POWERED BY FLOWNEXION 
-        Rendered as simple text below the chatbot icon when minimized.
-      */}
-            {!isOpen && isReady && (
-                <div className="absolute bottom-[2px] right-[20px] pointer-events-auto z-[1000000] opacity-80 hover:opacity-100 transition-opacity">
-                    <div className="text-[10px] text-slate-400 font-medium tracking-wide drop-shadow-sm select-none">
-                        powered by{' '}
-                        <a
-                            href="https://flownexion.com/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline hover:text-[#00D1FF] transition-colors"
-                        >
-                            Flownexion
-                        </a>
+    useEffect(() => {
+        if (isOpen) {
+            setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                inputRef.current?.focus();
+            }, 150);
+        }
+    }, [isOpen]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, isLoading]);
+
+    const sendMessage = async () => {
+        const text = input.trim();
+        if (!text || isLoading) return;
+
+        setInput('');
+        setMessages((prev) => [...prev, { role: 'user', content: text }]);
+        setIsLoading(true);
+
+        try {
+            const res = await fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: text,
+                    sessionId: sessionId.current,
+                }),
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const reply =
+                data.response ||
+                data.output ||
+                data.message ||
+                'Lo siento, no pude procesar tu consulta. Por favor inténtalo de nuevo.';
+
+            setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+        } catch {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    role: 'assistant',
+                    content:
+                        'Ha ocurrido un error de conexión. Por favor, inténtalo de nuevo o llámanos al **+34 968 676 983**.',
+                },
+            ]);
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => inputRef.current?.focus(), 50);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    };
+
+    const userHasSentMessage = messages.some((m) => m.role === 'user');
+
+    return (
+        <>
+            {/* Chat panel */}
+            <div
+                style={{
+                    position: 'fixed',
+                    bottom: 16,
+                    right: 16,
+                    zIndex: 999999,
+                    width: isOpen ? 'min(420px, calc(100vw - 32px))' : 0,
+                    height: isOpen ? 'min(580px, calc(100dvh - 32px))' : 0,
+                    opacity: isOpen ? 1 : 0,
+                    pointerEvents: isOpen ? 'all' : 'none',
+                    transition: 'width 0.3s ease, height 0.3s ease, opacity 0.25s ease',
+                    borderRadius: 18,
+                    boxShadow: '0 24px 64px rgba(0,0,0,0.3), 0 4px 16px rgba(0,209,255,0.12)',
+                    overflow: 'hidden',
+                    background: '#0f172a',
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}
+            >
+                {/* Header */}
+                <div
+                    style={{
+                        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                        borderBottom: '1px solid rgba(0,209,255,0.15)',
+                        padding: '14px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        flexShrink: 0,
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #00D1FF, #0070FF)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            fontSize: 18,
+                        }}
+                    >
+                        🤖
                     </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
+                            ESGAS Asistente Virtual
+                        </div>
+                        <div
+                            style={{
+                                color: '#00D1FF',
+                                fontSize: 11,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                marginTop: 2,
+                            }}
+                        >
+                            <span
+                                style={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: '50%',
+                                    background: '#00D1FF',
+                                    display: 'inline-block',
+                                    animation: 'esgas-pulse 2s infinite',
+                                }}
+                            />
+                            En línea · Rodamientos &amp; Transmisión de potencia
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setIsOpen(false)}
+                        style={{
+                            background: 'rgba(255,255,255,0.07)',
+                            border: 'none',
+                            borderRadius: 8,
+                            color: '#94a3b8',
+                            cursor: 'pointer',
+                            padding: '6px 9px',
+                            fontSize: 15,
+                            lineHeight: 1,
+                            transition: 'background 0.15s, color 0.15s',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.14)';
+                            e.currentTarget.style.color = '#fff';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
+                            e.currentTarget.style.color = '#94a3b8';
+                        }}
+                        aria-label="Cerrar chat"
+                    >
+                        ✕
+                    </button>
                 </div>
+
+                {/* Messages */}
+                <div
+                    style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '16px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                        scrollbarWidth: 'thin',
+                        scrollbarColor: 'rgba(0,209,255,0.2) transparent',
+                    }}
+                >
+                    {messages.map((msg, i) => (
+                        <div
+                            key={i}
+                            style={{
+                                display: 'flex',
+                                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                                alignItems: 'flex-end',
+                                gap: 8,
+                            }}
+                        >
+                            {msg.role === 'assistant' && (
+                                <div
+                                    style={{
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: '50%',
+                                        background: 'linear-gradient(135deg, #00D1FF, #0070FF)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0,
+                                        fontSize: 13,
+                                    }}
+                                >
+                                    🤖
+                                </div>
+                            )}
+                            <div
+                                style={{
+                                    maxWidth: '78%',
+                                    padding: '10px 14px',
+                                    borderRadius:
+                                        msg.role === 'user'
+                                            ? '16px 16px 4px 16px'
+                                            : '16px 16px 16px 4px',
+                                    background:
+                                        msg.role === 'user'
+                                            ? 'linear-gradient(135deg, #00D1FF, #0070FF)'
+                                            : 'rgba(255,255,255,0.07)',
+                                    border:
+                                        msg.role === 'assistant'
+                                            ? '1px solid rgba(255,255,255,0.08)'
+                                            : 'none',
+                                    color: '#fff',
+                                    fontSize: 13.5,
+                                    lineHeight: 1.6,
+                                    wordBreak: 'break-word',
+                                }}
+                                dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                            />
+                        </div>
+                    ))}
+
+                    {/* Typing indicator */}
+                    {isLoading && (
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+                            <div
+                                style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, #00D1FF, #0070FF)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    fontSize: 13,
+                                }}
+                            >
+                                🤖
+                            </div>
+                            <div
+                                style={{
+                                    padding: '12px 16px',
+                                    borderRadius: '16px 16px 16px 4px',
+                                    background: 'rgba(255,255,255,0.07)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    display: 'flex',
+                                    gap: 5,
+                                    alignItems: 'center',
+                                }}
+                            >
+                                {[0, 1, 2].map((n) => (
+                                    <span
+                                        key={n}
+                                        style={{
+                                            width: 7,
+                                            height: 7,
+                                            borderRadius: '50%',
+                                            background: '#00D1FF',
+                                            display: 'inline-block',
+                                            animation: `esgas-bounce 1.2s ease-in-out ${n * 0.2}s infinite`,
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div ref={messagesEndRef} />
+                </div>
+
+                {/* Quick suggestions */}
+                {!userHasSentMessage && !isLoading && (
+                    <div
+                        style={{
+                            padding: '0 12px 8px',
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 6,
+                        }}
+                    >
+                        {QUICK_SUGGESTIONS.map((s) => (
+                            <button
+                                key={s}
+                                onClick={() => {
+                                    setInput(s);
+                                    setTimeout(() => inputRef.current?.focus(), 50);
+                                }}
+                                style={{
+                                    background: 'rgba(0,209,255,0.08)',
+                                    border: '1px solid rgba(0,209,255,0.25)',
+                                    borderRadius: 20,
+                                    color: '#00D1FF',
+                                    fontSize: 11.5,
+                                    padding: '5px 11px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s',
+                                    whiteSpace: 'nowrap',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(0,209,255,0.18)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(0,209,255,0.08)';
+                                }}
+                            >
+                                {s}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Input */}
+                <div
+                    style={{
+                        padding: '10px 12px',
+                        borderTop: '1px solid rgba(255,255,255,0.07)',
+                        display: 'flex',
+                        gap: 8,
+                        flexShrink: 0,
+                    }}
+                >
+                    <input
+                        ref={inputRef}
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Escribe tu consulta aquí..."
+                        disabled={isLoading}
+                        style={{
+                            flex: 1,
+                            background: 'rgba(255,255,255,0.07)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: 12,
+                            color: '#fff',
+                            fontSize: 13.5,
+                            padding: '10px 14px',
+                            outline: 'none',
+                            transition: 'border-color 0.15s',
+                        }}
+                        onFocus={(e) =>
+                            (e.target.style.borderColor = 'rgba(0,209,255,0.45)')
+                        }
+                        onBlur={(e) =>
+                            (e.target.style.borderColor = 'rgba(255,255,255,0.1)')
+                        }
+                    />
+                    <button
+                        onClick={sendMessage}
+                        disabled={isLoading || !input.trim()}
+                        style={{
+                            width: 42,
+                            height: 42,
+                            borderRadius: 12,
+                            border: 'none',
+                            cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer',
+                            background:
+                                isLoading || !input.trim()
+                                    ? 'rgba(255,255,255,0.08)'
+                                    : 'linear-gradient(135deg, #00D1FF, #0070FF)',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            transition: 'all 0.15s',
+                            opacity: isLoading || !input.trim() ? 0.45 : 1,
+                        }}
+                        aria-label="Enviar"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                            <path
+                                d="M22 2L11 13"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                            <path
+                                d="M22 2L15 22L11 13L2 9L22 2Z"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Footer */}
+                <div
+                    style={{
+                        textAlign: 'center',
+                        padding: '4px 12px 10px',
+                        fontSize: 10,
+                        color: 'rgba(255,255,255,0.22)',
+                        flexShrink: 0,
+                    }}
+                >
+                    ESGAS · C/ Estrella Polar 5, Molina de Segura, Murcia · +34 968 676 983
+                </div>
+            </div>
+
+            {/* Floating reopen button */}
+            {hasOpened && !isOpen && (
+                <button
+                    onClick={() => setIsOpen(true)}
+                    style={{
+                        position: 'fixed',
+                        bottom: 20,
+                        right: 20,
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: 'linear-gradient(135deg, #00D1FF, #0070FF)',
+                        boxShadow: '0 8px 28px rgba(0,209,255,0.45)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 999998,
+                        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                        color: '#fff',
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.1)';
+                        e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,209,255,0.55)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = '0 8px 28px rgba(0,209,255,0.45)';
+                    }}
+                    aria-label="Abrir chat"
+                >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path
+                            d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                    </svg>
+                </button>
             )}
-        </div>
+
+            <style>{`
+                @keyframes esgas-bounce {
+                    0%, 80%, 100% { transform: translateY(0); opacity: 0.6; }
+                    40% { transform: translateY(-6px); opacity: 1; }
+                }
+                @keyframes esgas-pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.35; }
+                }
+            `}</style>
+        </>
     );
 }
