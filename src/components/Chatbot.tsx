@@ -7,8 +7,7 @@ interface Message {
     content: string;
 }
 
-const WEBHOOK_URL =
-    'https://paneln8n.transformaconia.com/webhook/031ab1e6-d64e-41f0-b03e-f5c0681a6491';
+const WEBHOOK_URL = '/api/chat';
 
 function generateSessionId() {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
