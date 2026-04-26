@@ -224,6 +224,21 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     >
                         ¿ALGUNA DUDA?
                     </div>
+
+                    {/* Powered by Flownexion */}
+                    <div style={{ marginTop: 6, fontSize: 10, color: '#94a3b8', fontWeight: 500, letterSpacing: '0.04em', textAlign: 'center' }}>
+                        powered by{' '}
+                        <a
+                            href="https://flownexion.com/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#94a3b8', textDecoration: 'underline' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = '#00D1FF')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
+                        >
+                            Flownexion
+                        </a>
+                    </div>
                 </div>
             )}
 
