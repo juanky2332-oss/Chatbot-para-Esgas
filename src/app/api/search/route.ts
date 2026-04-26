@@ -23,6 +23,26 @@ function numericCore(q: string): string {
   return m ? m[0] : '';
 }
 
+// Generate notation variants: "ZZ" ↔ "2Z",  "2RS" ↔ "LLU",  spaces/dashes handled by norm()
+function normVariants(q: string): string[] {
+  const base = norm(q);
+  const variants = new Set<string>([base]);
+  // ZZ ↔ 2Z (NTN vs SKF shield notation)
+  if (base.includes('ZZ')) variants.add(base.replace(/ZZ/g, '2Z'));
+  if (base.includes('2Z')) variants.add(base.replace(/2Z/g, 'ZZ'));
+  // RSH / RSL / 2RSH / 2RSL ↔ LLU / LLB
+  if (base.includes('2RSH') || base.includes('2RSL') || base.includes('2RS1')) {
+    variants.add(base.replace(/2RS[HL1]/g, 'LLU'));
+    variants.add(base.replace(/2RS[HL1]/g, 'LLB'));
+  }
+  if (base.includes('DDU') || base.includes('VV')) {
+    variants.add(base.replace(/DDU|VV/g, 'LLU'));
+  }
+  // C-2BRS (FAG) → LLB
+  if (base.includes('C2BRS')) variants.add(base.replace(/C2BRS/g, 'LLB'));
+  return [...variants];
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface SearchResult {
   tipo: string;
@@ -61,12 +81,12 @@ async function enrichEquivalencia(eq: {
   };
 }
 
-// ── Score a row against the normalised query ──────────────────────────────────
-function score(row: Record<string, string>, qNorm: string): number {
+// ── Score a row against the normalised query (with notation variants) ─────────
+function score(row: Record<string, string>, variants: string[]): number {
   const fields = ['skf', 'fag', 'nsk', 'ref_ntn', 'ref'].map(k => norm(row[k] || ''));
-  if (fields.some(f => f === qNorm)) return 3;            // exact
-  if (fields.some(f => f.startsWith(qNorm) || qNorm.startsWith(f))) return 2; // prefix
-  if (fields.some(f => f.includes(qNorm))) return 1;      // contains
+  if (fields.some(f => variants.includes(f))) return 3;
+  if (fields.some(f => variants.some(v => f.startsWith(v) || v.startsWith(f)))) return 2;
+  if (fields.some(f => variants.some(v => f.includes(v)))) return 1;
   return 0;
 }
 
@@ -76,6 +96,7 @@ async function searchByReference(query: string): Promise<SearchResult[]> {
   const q = query.trim();
   const qNorm = norm(q);
   const core = numericCore(q); // e.g. "6205"
+  const variants = normVariants(q); // e.g. ["6205ZZC3","62052ZC3"]
 
   // Build OR filter: try full query + numeric core against all brand columns
   const patterns = [q];
@@ -99,7 +120,7 @@ async function searchByReference(query: string): Promise<SearchResult[]> {
   if (eqData && eqData.length > 0) {
     // Score and sort: exact match > prefix > core match
     const scored = eqData
-      .map(row => ({ row, s: score(row as Record<string, string>, qNorm) }))
+      .map(row => ({ row, s: score(row as Record<string, string>, variants) }))
       .sort((a, b) => b.s - a.s)
       .slice(0, 5);
 
@@ -121,7 +142,7 @@ async function searchByReference(query: string): Promise<SearchResult[]> {
 
     if (prodData) {
       const scored = prodData
-        .map(row => ({ row, s: score(row as Record<string, string>, qNorm) }))
+        .map(row => ({ row, s: score(row as Record<string, string>, variants) }))
         .sort((a, b) => b.s - a.s);
 
       for (const { row: p } of scored) {
