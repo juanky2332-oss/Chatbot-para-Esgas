@@ -46,7 +46,7 @@ const QUICK_SUGGESTIONS = [
     'Rodamiento para motor a 150°C',
 ];
 
-export default function Chatbot() {
+export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isLeaning, setIsLeaning] = useState(false);
     const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
@@ -80,6 +80,12 @@ export default function Chatbot() {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading]);
+
+    useEffect(() => {
+        if (embedMode && window.parent !== window) {
+            window.parent.postMessage({ type: 'esgas-chat-open', open: isOpen }, '*');
+        }
+    }, [isOpen, embedMode]);
 
     const sendMessage = async () => {
         const text = input.trim();
