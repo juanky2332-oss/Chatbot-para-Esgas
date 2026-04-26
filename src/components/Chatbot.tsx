@@ -15,8 +15,21 @@ function generateSessionId() {
 
 function renderMarkdown(text: string): string {
     return text
+        // Bold
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        // Italic
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        // Headers h3
+        .replace(/^### (.+)$/gm, '<strong style="font-size:14px;color:#00D1FF;display:block;margin-top:8px">$1</strong>')
+        // Headers h4
+        .replace(/^#### (.+)$/gm, '<strong style="font-size:13px;color:#94a3b8;display:block;margin-top:6px">$1</strong>')
+        // Horizontal rules
+        .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:6px 0"/>')
+        // Bullet lists: lines starting with - or •
+        .replace(/^[-•] (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#00D1FF;flex-shrink:0">•</span><span>$1</span></span>')
+        // Numbered lists
+        .replace(/^(\d+)\. (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#00D1FF;flex-shrink:0;min-width:16px">$1.</span><span>$2</span></span>')
+        // Line breaks
         .replace(/\n/g, '<br/>');
 }
 
@@ -27,10 +40,10 @@ const WELCOME_MESSAGE: Message = {
 };
 
 const QUICK_SUGGESTIONS = [
-    '¿Qué rodamientos vendéis?',
-    'Equivalente de SKF 6204',
-    'Rodamiento para motor eléctrico',
-    'Precios y disponibilidad',
+    'Equivalente NTN de SKF 6205-2RS',
+    'Rodamiento para maquinaria agrícola',
+    '¿Qué diferencia hay entre 6204 y 6304?',
+    'Rodamiento para alta temperatura',
 ];
 
 export default function Chatbot() {

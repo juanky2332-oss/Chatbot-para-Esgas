@@ -113,9 +113,21 @@ function parseProductos() {
     const marca = String(r['INFORMACIÓN'] || '').trim();
     const ref = String(r['__EMPTY'] || '').trim();
     const ean = String(r['__EMPTY_1'] || '').trim();
-    const descripcion = String(r['INFORMACIÓN DE PRODUCTO'] || '').trim();
+    const desc_corta = String(r['INFORMACIÓN DE PRODUCTO'] || '').trim();
+    const desc_larga = String(r['__EMPTY_2'] || '').trim();
     const apps_raw = String(r['__EMPTY_4'] || '').trim();
-    const aplicaciones = (apps_raw === '-' || !apps_raw) ? null : apps_raw;
+    const ventajas = String(r['__EMPTY_5'] || '').trim();
+
+    // descripcion: short desc, fallback to first sentence of long desc
+    const descripcion = desc_corta || (desc_larga ? desc_larga.split('\n')[0].substring(0, 250) : null);
+
+    // aplicaciones: rich text combining all useful fields
+    const parts = [];
+    if (apps_raw && apps_raw !== '-') parts.push(apps_raw);
+    if (desc_larga && desc_larga !== '-') parts.push(desc_larga);
+    if (ventajas && ventajas !== '-') parts.push(ventajas);
+    const aplicaciones = parts.length > 0 ? parts.join('\n\n') : null;
+
     if (ref) {
       rows.push({
         marca: marca || null,
