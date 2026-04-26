@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return _supabase;
+}
 
 // Normalise reference: uppercase, strip spaces/dashes/dots/slashes
 function norm(s: string): string {
@@ -30,6 +36,7 @@ async function searchByReference(query: string): Promise<SearchResult[]> {
 
   // 1. Search equivalencias (other brands → NTN/SNR)
   //    Try exact match on each brand column via ilike (case-insensitive)
+  const supabase = getSupabase();
   const { data: eqData } = await supabase
     .from('equivalencias')
     .select('skf, fag, nsk, ref_ntn, marca, ean')
@@ -97,6 +104,7 @@ async function searchByReference(query: string): Promise<SearchResult[]> {
 
 async function searchByKeyword(query: string): Promise<SearchResult[]> {
   const q = query.trim();
+  const supabase = getSupabase();
 
   // Full-text search on productos
   const { data: ftsData } = await supabase
@@ -117,7 +125,7 @@ async function searchByKeyword(query: string): Promise<SearchResult[]> {
   }
 
   // Fallback: simple ilike on descripcion
-  const { data: likeData } = await supabase
+  const { data: likeData } = await getSupabase()
     .from('productos')
     .select('marca, ref, ean, descripcion, aplicaciones')
     .ilike('descripcion', `%${q}%`)
