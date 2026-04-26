@@ -12,11 +12,18 @@ function getSupabase(): SupabaseClient {
   return _supabase;
 }
 
-// Normalise reference: uppercase, strip spaces/dashes/dots/slashes
+// ── Normalise: uppercase, strip spaces/dashes/dots/slashes ────────────────────
 function norm(s: string): string {
-  return s.toUpperCase().replace(/[\s\-./]/g, '');
+  return String(s).toUpperCase().replace(/[\s\-./]/g, '');
 }
 
+// Extract the numeric core of a reference: "6205 ZZ C3" → "6205", "32212U" → "32212"
+function numericCore(q: string): string {
+  const m = q.match(/\d{4,}/);
+  return m ? m[0] : '';
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface SearchResult {
   tipo: string;
   skf?: string | null;
@@ -29,63 +36,96 @@ interface SearchResult {
   aplicaciones?: string | null;
 }
 
+// ── Enrich equivalencia with product description ──────────────────────────────
+async function enrichEquivalencia(eq: {
+  skf: string; fag: string; nsk: string; ref_ntn: string; marca: string; ean: string;
+}): Promise<SearchResult> {
+  const supabase = getSupabase();
+  const { data: prod } = await supabase
+    .from('productos')
+    .select('descripcion, aplicaciones')
+    .ilike('ref', eq.ref_ntn)
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    tipo: 'equivalencia',
+    skf: eq.skf || null,
+    fag: eq.fag || null,
+    nsk: eq.nsk || null,
+    ref_ntn: eq.ref_ntn,
+    marca: eq.marca || null,
+    ean: eq.ean || null,
+    descripcion: prod?.descripcion ?? null,
+    aplicaciones: prod?.aplicaciones ?? null,
+  };
+}
+
+// ── Score a row against the normalised query ──────────────────────────────────
+function score(row: Record<string, string>, qNorm: string): number {
+  const fields = ['skf', 'fag', 'nsk', 'ref_ntn', 'ref'].map(k => norm(row[k] || ''));
+  if (fields.some(f => f === qNorm)) return 3;            // exact
+  if (fields.some(f => f.startsWith(qNorm) || qNorm.startsWith(f))) return 2; // prefix
+  if (fields.some(f => f.includes(qNorm))) return 1;      // contains
+  return 0;
+}
+
+// ── Main reference search ─────────────────────────────────────────────────────
 async function searchByReference(query: string): Promise<SearchResult[]> {
+  const supabase = getSupabase();
   const q = query.trim();
   const qNorm = norm(q);
-  const results: SearchResult[] = [];
+  const core = numericCore(q); // e.g. "6205"
 
-  // 1. Search equivalencias (other brands → NTN/SNR)
-  //    Try exact match on each brand column via ilike (case-insensitive)
-  const supabase = getSupabase();
+  // Build OR filter: try full query + numeric core against all brand columns
+  const patterns = [q];
+  if (core && core !== q) patterns.push(core);
+
+  const orFilters = patterns.flatMap(p => [
+    `skf.ilike.%${p}%`,
+    `fag.ilike.%${p}%`,
+    `nsk.ilike.%${p}%`,
+    `ref_ntn.ilike.%${p}%`,
+  ]).join(',');
+
   const { data: eqData } = await supabase
     .from('equivalencias')
     .select('skf, fag, nsk, ref_ntn, marca, ean')
-    .or(`skf.ilike.%${q}%,fag.ilike.%${q}%,nsk.ilike.%${q}%`)
-    .limit(8);
+    .or(orFilters)
+    .limit(20);
+
+  const results: SearchResult[] = [];
 
   if (eqData && eqData.length > 0) {
-    // Sort: exact matches first, then partial
-    const sorted = eqData.sort((a, b) => {
-      const aExact = [a.skf, a.fag, a.nsk].some(v => v && norm(v) === qNorm) ? 0 : 1;
-      const bExact = [b.skf, b.fag, b.nsk].some(v => v && norm(v) === qNorm) ? 0 : 1;
-      return aExact - bExact;
-    });
+    // Score and sort: exact match > prefix > core match
+    const scored = eqData
+      .map(row => ({ row, s: score(row as Record<string, string>, qNorm) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 5);
 
-    for (const eq of sorted.slice(0, 5)) {
-      // Enrich with product description
-      const { data: prod } = await supabase
-        .from('productos')
-        .select('descripcion, aplicaciones')
-        .ilike('ref', eq.ref_ntn)
-        .limit(1)
-        .single();
-
-      results.push({
-        tipo: 'equivalencia',
-        skf: eq.skf,
-        fag: eq.fag,
-        nsk: eq.nsk,
-        ref_ntn: eq.ref_ntn,
-        marca: eq.marca,
-        ean: eq.ean,
-        descripcion: prod?.descripcion ?? null,
-        aplicaciones: prod?.aplicaciones ?? null,
-      });
+    for (const { row } of scored) {
+      results.push(await enrichEquivalencia(row as {
+        skf: string; fag: string; nsk: string; ref_ntn: string; marca: string; ean: string;
+      }));
     }
   }
 
-  // 2. Also search directly in productos by NTN/SNR reference
+  // Also search productos directly (user may have typed an NTN ref)
   if (results.length < 3) {
+    const prodPatterns = patterns.flatMap(p => [`ref.ilike.%${p}%`]).join(',');
     const { data: prodData } = await supabase
       .from('productos')
       .select('marca, ref, ean, descripcion, aplicaciones')
-      .ilike('ref', `%${q}%`)
-      .limit(5);
+      .or(prodPatterns)
+      .limit(10);
 
     if (prodData) {
-      for (const p of prodData) {
-        const alreadyFound = results.some(r => r.ref_ntn === p.ref);
-        if (!alreadyFound) {
+      const scored = prodData
+        .map(row => ({ row, s: score(row as Record<string, string>, qNorm) }))
+        .sort((a, b) => b.s - a.s);
+
+      for (const { row: p } of scored) {
+        if (!results.some(r => r.ref_ntn === p.ref)) {
           results.push({
             tipo: 'producto',
             ref_ntn: p.ref,
@@ -95,6 +135,7 @@ async function searchByReference(query: string): Promise<SearchResult[]> {
             aplicaciones: p.aplicaciones,
           });
         }
+        if (results.length >= 5) break;
       }
     }
   }
@@ -102,18 +143,19 @@ async function searchByReference(query: string): Promise<SearchResult[]> {
   return results.slice(0, 5);
 }
 
+// ── Keyword / application search ──────────────────────────────────────────────
 async function searchByKeyword(query: string): Promise<SearchResult[]> {
-  const q = query.trim();
   const supabase = getSupabase();
+  const q = query.trim();
 
-  // Full-text search on productos
-  const { data: ftsData } = await supabase
+  // Full-text search
+  const { data: ftsData, error } = await supabase
     .from('productos')
     .select('marca, ref, ean, descripcion, aplicaciones')
     .textSearch('search_vector', q, { type: 'websearch', config: 'spanish' })
     .limit(5);
 
-  if (ftsData && ftsData.length > 0) {
+  if (!error && ftsData && ftsData.length > 0) {
     return ftsData.map(p => ({
       tipo: 'producto',
       ref_ntn: p.ref,
@@ -124,11 +166,11 @@ async function searchByKeyword(query: string): Promise<SearchResult[]> {
     }));
   }
 
-  // Fallback: simple ilike on descripcion
-  const { data: likeData } = await getSupabase()
+  // Fallback: ilike on descripcion
+  const { data: likeData } = await supabase
     .from('productos')
     .select('marca, ref, ean, descripcion, aplicaciones')
-    .ilike('descripcion', `%${q}%`)
+    .or(`descripcion.ilike.%${q}%,aplicaciones.ilike.%${q}%`)
     .limit(5);
 
   return (likeData ?? []).map(p => ({
@@ -141,36 +183,30 @@ async function searchByKeyword(query: string): Promise<SearchResult[]> {
   }));
 }
 
-// Heuristic: looks like a bearing reference (has digits, short-ish)
+// Heuristic: has 4+ digit sequence → reference, else keyword
 function looksLikeReference(q: string): boolean {
-  return /\d{3,}/.test(q) && q.length < 30;
+  return /\d{4,}/.test(q) && q.length < 35;
 }
 
+// ── Route handlers ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { query } = body as { query: string };
-
     if (!query || typeof query !== 'string') {
       return NextResponse.json({ error: 'query required' }, { status: 400 });
     }
-
     const q = query.trim().slice(0, 150);
-    const results = looksLikeReference(q)
+    let results = looksLikeReference(q)
       ? await searchByReference(q)
       : await searchByKeyword(q);
 
-    // If reference search found nothing, also try keyword
-    const finalResults =
-      results.length === 0 && looksLikeReference(q)
-        ? await searchByKeyword(q)
-        : results;
+    // If reference search returned nothing, fallback to keyword
+    if (results.length === 0) {
+      results = await searchByKeyword(q);
+    }
 
-    return NextResponse.json({
-      query: q,
-      total: finalResults.length,
-      results: finalResults,
-    });
+    return NextResponse.json({ query: q, total: results.length, results });
   } catch (err) {
     console.error('[search]', err);
     return NextResponse.json({ error: 'internal_error' }, { status: 500 });
@@ -180,9 +216,11 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q') ?? '';
   if (!q) return NextResponse.json({ error: 'q param required' }, { status: 400 });
-  return POST(new NextRequest(req.url, {
-    method: 'POST',
-    body: JSON.stringify({ query: q }),
-    headers: { 'Content-Type': 'application/json' },
-  }));
+  return POST(
+    new NextRequest(req.url, {
+      method: 'POST',
+      body: JSON.stringify({ query: q }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+  );
 }
