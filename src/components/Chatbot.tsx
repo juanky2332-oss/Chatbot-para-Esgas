@@ -36,14 +36,14 @@ function renderMarkdown(text: string): string {
 const WELCOME_MESSAGE: Message = {
     role: 'assistant',
     content:
-        '¡Buenas! ¿En qué te puedo echar una mano? Dime la referencia que buscas, la marca, o cuéntame para qué aplicación lo necesitas y te ayudo enseguida.',
+        '¡Buenas! Soy el asesor técnico de **ESGAS**, distribuidores oficiales NTN·SNR en Murcia.\n\n¿Tienes una referencia de SKF, FAG, NSK u otra marca? Te doy el **equivalente NTN/SNR** al momento. O cuéntame la aplicación y te recomiendo el rodamiento más adecuado.',
 };
 
 const QUICK_SUGGESTIONS = [
-    'Equivalente NTN de SKF 6205-2RS',
-    'Rodamiento para maquinaria agrícola',
-    '¿Qué diferencia hay entre 6204 y 6304?',
-    'Rodamiento para alta temperatura',
+    'Equivalente NTN del SKF 6205-2RSH',
+    '¿Qué rodamiento para tractor agrícola?',
+    'Diferencia entre 6205 LLU y 6205 ZZ',
+    'Rodamiento para motor a 150°C',
 ];
 
 export default function Chatbot() {
