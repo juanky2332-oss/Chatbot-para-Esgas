@@ -35,16 +35,8 @@ function renderMarkdown(text: string): string {
 
 const WELCOME_MESSAGE: Message = {
     role: 'assistant',
-    content:
-        '¡Buenas! Soy el asesor técnico de **ESGAS**, distribuidores oficiales NTN·SNR en Murcia.\n\n¿Tienes una referencia de SKF, FAG, NSK u otra marca? Te doy el **equivalente NTN/SNR** al momento. O cuéntame la aplicación y te recomiendo el rodamiento más adecuado.',
+    content: 'Hola, soy tu agente técnico de ESGAS. ¿En qué puedo ayudarte?',
 };
-
-const QUICK_SUGGESTIONS = [
-    'Equivalente NTN del SKF 6205-2RSH',
-    '¿Qué rodamiento para tractor agrícola?',
-    'Diferencia entre 6205 LLU y 6205 ZZ',
-    'Rodamiento para motor a 150°C',
-];
 
 export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -136,7 +128,6 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
         }
     };
 
-    const userHasSentMessage = messages.some((m) => m.role === 'user');
 
     return (
         <>
@@ -388,22 +379,6 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
 
                     <div ref={messagesEndRef} />
                 </div>
-
-                {/* Quick suggestions */}
-                {!userHasSentMessage && !isLoading && (
-                    <div style={{ padding: '0 12px 8px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {QUICK_SUGGESTIONS.map((s) => (
-                            <button key={s}
-                                onClick={() => { setInput(s); setTimeout(() => inputRef.current?.focus(), 50); }}
-                                style={{ background: 'rgba(0,209,255,0.08)', border: '1px solid rgba(0,209,255,0.25)', borderRadius: 20, color: '#00D1FF', fontSize: 11.5, padding: '5px 11px', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,209,255,0.18)'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,209,255,0.08)'; }}
-                            >
-                                {s}
-                            </button>
-                        ))}
-                    </div>
-                )}
 
                 {/* Input */}
                 <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 8, flexShrink: 0 }}>
