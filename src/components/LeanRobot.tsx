@@ -152,10 +152,16 @@ export default function LeanRobot() {
         @keyframes leanFloat {
           0%,
           100% {
-            transform: translateY(0);
+            transform: translateY(0) rotate(0deg);
+          }
+          25% {
+            transform: translateY(-4px) rotate(-1deg);
           }
           50% {
-            transform: translateY(-8px);
+            transform: translateY(-8px) rotate(0deg);
+          }
+          75% {
+            transform: translateY(-4px) rotate(1deg);
           }
         }
         @keyframes blinkEyesOnly {

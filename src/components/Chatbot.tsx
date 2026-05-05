@@ -15,21 +15,13 @@ function generateSessionId() {
 
 function renderMarkdown(text: string): string {
     return text
-        // Bold
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        // Italic
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        // Headers h3
         .replace(/^### (.+)$/gm, '<strong style="font-size:14px;color:#00D1FF;display:block;margin-top:8px">$1</strong>')
-        // Headers h4
         .replace(/^#### (.+)$/gm, '<strong style="font-size:13px;color:#94a3b8;display:block;margin-top:6px">$1</strong>')
-        // Horizontal rules
         .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:6px 0"/>')
-        // Bullet lists: lines starting with - or •
         .replace(/^[-•] (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#00D1FF;flex-shrink:0">•</span><span>$1</span></span>')
-        // Numbered lists
         .replace(/^(\d+)\. (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#00D1FF;flex-shrink:0;min-width:16px">$1.</span><span>$2</span></span>')
-        // Line breaks
         .replace(/\n/g, '<br/>');
 }
 
@@ -128,7 +120,6 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
         }
     };
 
-
     return (
         <>
             {/* ── FLOATING ROBOT BUTTON (bottom-right, always visible when chat closed) ── */}
@@ -143,86 +134,150 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                         flexDirection: 'column',
                         alignItems: 'center',
                         cursor: 'pointer',
+                        transform: isLeaning ? 'scale(0.93)' : 'scale(1)',
+                        transition: 'transform 0.15s ease',
                     }}
                     onClick={openChat}
                 >
-                    {/* Mini robot SVG — same as LeanRobot but scaled down */}
-                    <svg
-                        viewBox="0 0 200 120"
-                        style={{
-                            width: 110,
-                            height: 'auto',
-                            overflow: 'visible',
-                            filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.25))',
-                            animation: 'esgas-leanFloat 4s ease-in-out infinite',
-                            transition: 'transform 0.2s ease',
-                            transform: isLeaning ? 'scale(0.93)' : 'scale(1)',
-                        }}
-                    >
-                        <defs>
-                            <linearGradient id="botGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#FFFFFF" />
-                                <stop offset="100%" stopColor="#CBD5E1" />
-                            </linearGradient>
-                            <filter id="botShadow" x="-20%" y="-20%" width="140%" height="140%">
-                                <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
-                                <feOffset dx="0" dy="2" result="offsetblur" />
-                                <feComponentTransfer>
-                                    <feFuncA type="linear" slope="0.3" />
-                                </feComponentTransfer>
-                                <feMerge>
-                                    <feMergeNode />
-                                    <feMergeNode in="SourceGraphic" />
-                                </feMerge>
-                            </filter>
-                        </defs>
-                        {/* Body/Neck */}
-                        <rect x="75" y="80" width="50" height="30" rx="10" fill="#CBD5E1" />
-                        {/* Arms */}
-                        <path d="M50 70 Q30 70 35 110" stroke="url(#botGrad)" strokeWidth="18" strokeLinecap="round" fill="none" />
-                        <path d="M150 70 Q170 70 165 110" stroke="url(#botGrad)" strokeWidth="18" strokeLinecap="round" fill="none" />
-                        {/* Head */}
-                        <rect x="45" y="5" width="110" height="90" rx="45" fill="url(#botGrad)" />
-                        <rect x="55" y="20" width="90" height="50" rx="22" fill="#0F172A" />
-                        {/* Eyes */}
-                        <g style={{ animation: 'esgas-blinkEyes 4s infinite', transformOrigin: 'center 45px' }}>
-                            <circle cx="82" cy="45" r="9" fill="#00D1FF" />
-                            <circle cx="118" cy="45" r="9" fill="#00D1FF" />
-                            <circle cx="85" cy="42" r="3" fill="white" fillOpacity="0.8" />
-                            <circle cx="121" cy="42" r="3" fill="white" fillOpacity="0.8" />
-                        </g>
-                        {/* Smile */}
-                        <path d="M90 60 Q100 66 110 60" fill="none" stroke="#00D1FF" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
-                        {/* Antenna */}
-                        <line x1="100" y1="5" x2="100" y2="-8" stroke="#94A3B8" strokeWidth="4" />
-                        <circle cx="100" cy="-8" r="5" fill="#00D1FF" style={{ animation: 'esgas-pulseLight 1.5s infinite' }} />
-                        {/* Hands */}
-                        <rect x="25" y="105" width="45" height="15" rx="7" fill="#94A3B8" filter="url(#botShadow)" />
-                        <rect x="130" y="105" width="45" height="15" rx="7" fill="#94A3B8" filter="url(#botShadow)" />
-                    </svg>
-
-                    {/* "¿ALGUNA DUDA?" bar — identical style to LeanRobot */}
-                    <div
-                        style={{
-                            background: 'linear-gradient(to right, #00D1FF, #0070FF)',
-                            color: '#fff',
-                            padding: '10px 16px',
-                            borderRadius: 14,
-                            fontWeight: 800,
-                            fontSize: 11,
-                            letterSpacing: '0.06em',
-                            boxShadow: '0 10px 25px rgba(0,209,255,0.4)',
-                            marginTop: -10,
+                    {/* Inner wrapper — attention animation */}
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        animation: 'esgas-attention 14s ease-in-out 10s infinite',
+                    }}>
+                        {/* Notification badge */}
+                        <div style={{
+                            width: 13,
+                            height: 13,
+                            borderRadius: '50%',
+                            background: '#EF4444',
+                            border: '2.5px solid white',
+                            alignSelf: 'flex-end',
+                            marginRight: 12,
+                            marginBottom: -8,
                             position: 'relative',
-                            zIndex: 10,
-                            textAlign: 'center',
-                            textTransform: 'uppercase',
-                            border: '2px solid rgba(255,255,255,0.2)',
-                            minWidth: 120,
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        ¿ALGUNA DUDA?
+                            zIndex: 2,
+                            animation: 'esgas-dotPulse 2.5s ease-in-out infinite',
+                            boxShadow: '0 0 8px rgba(239,68,68,0.5)',
+                        }} />
+
+                        {/* Robot SVG — float + tilt */}
+                        <svg
+                            viewBox="0 0 200 120"
+                            style={{
+                                width: 130,
+                                height: 'auto',
+                                overflow: 'visible',
+                                filter: 'drop-shadow(0 8px 22px rgba(0,0,0,0.28)) drop-shadow(0 2px 8px rgba(0,209,255,0.18))',
+                                animation: 'esgas-leanFloat 4s ease-in-out infinite',
+                            }}
+                        >
+                            <defs>
+                                <linearGradient id="botGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stopColor="#FFFFFF" />
+                                    <stop offset="100%" stopColor="#CBD5E1" />
+                                </linearGradient>
+                                <filter id="botShadow" x="-20%" y="-20%" width="140%" height="140%">
+                                    <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
+                                    <feOffset dx="0" dy="2" result="offsetblur" />
+                                    <feComponentTransfer>
+                                        <feFuncA type="linear" slope="0.3" />
+                                    </feComponentTransfer>
+                                    <feMerge>
+                                        <feMergeNode />
+                                        <feMergeNode in="SourceGraphic" />
+                                    </feMerge>
+                                </filter>
+                            </defs>
+
+                            {/* Body/Neck */}
+                            <rect x="75" y="80" width="50" height="30" rx="10" fill="#CBD5E1" />
+
+                            {/* Left arm — wave animation */}
+                            <g style={{
+                                transformBox: 'fill-box',
+                                transformOrigin: '50% 0%',
+                                animation: 'esgas-armWave 7s ease-in-out 5s infinite',
+                            }}>
+                                <path
+                                    d="M50 70 Q30 70 35 110"
+                                    stroke="url(#botGrad)"
+                                    strokeWidth="18"
+                                    strokeLinecap="round"
+                                    fill="none"
+                                />
+                                <rect x="25" y="105" width="45" height="15" rx="7" fill="#94A3B8" filter="url(#botShadow)" />
+                            </g>
+
+                            {/* Right arm */}
+                            <path
+                                d="M150 70 Q170 70 165 110"
+                                stroke="url(#botGrad)"
+                                strokeWidth="18"
+                                strokeLinecap="round"
+                                fill="none"
+                            />
+
+                            {/* Head */}
+                            <rect x="45" y="5" width="110" height="90" rx="45" fill="url(#botGrad)" />
+                            <rect x="55" y="20" width="90" height="50" rx="22" fill="#0F172A" />
+
+                            {/* Eyes */}
+                            <g style={{ animation: 'esgas-blinkEyes 4s infinite', transformOrigin: 'center 45px' }}>
+                                <circle cx="82" cy="45" r="9" fill="#00D1FF" />
+                                <circle cx="118" cy="45" r="9" fill="#00D1FF" />
+                                <circle cx="85" cy="42" r="3" fill="white" fillOpacity="0.8" />
+                                <circle cx="121" cy="42" r="3" fill="white" fillOpacity="0.8" />
+                            </g>
+
+                            {/* Smile */}
+                            <path
+                                d="M90 60 Q100 66 110 60"
+                                fill="none"
+                                stroke="#00D1FF"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                opacity="0.6"
+                            />
+
+                            {/* Antenna */}
+                            <line x1="100" y1="5" x2="100" y2="-8" stroke="#94A3B8" strokeWidth="4" />
+                            <circle
+                                cx="100"
+                                cy="-8"
+                                r="5"
+                                fill="#00D1FF"
+                                style={{ animation: 'esgas-pulseLight 1.5s infinite' }}
+                            />
+
+                            {/* Right hand */}
+                            <rect x="130" y="105" width="45" height="15" rx="7" fill="#94A3B8" filter="url(#botShadow)" />
+                        </svg>
+
+                        {/* Label */}
+                        <div
+                            style={{
+                                background: 'linear-gradient(to right, #00D1FF, #0070FF)',
+                                color: '#fff',
+                                padding: '10px 18px',
+                                borderRadius: 14,
+                                fontWeight: 800,
+                                fontSize: 11,
+                                letterSpacing: '0.06em',
+                                animation: 'esgas-labelGlow 3s ease-in-out infinite',
+                                marginTop: -10,
+                                position: 'relative',
+                                zIndex: 10,
+                                textAlign: 'center',
+                                textTransform: 'uppercase',
+                                border: '2px solid rgba(255,255,255,0.2)',
+                                minWidth: 130,
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            ¿ALGUNA DUDA?
+                        </div>
                     </div>
 
                     {/* Powered by Flownexion */}
@@ -274,7 +329,6 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                         flexShrink: 0,
                     }}
                 >
-                    {/* Mini robot head in header */}
                     <div style={{ width: 38, height: 38, flexShrink: 0, position: 'relative' }}>
                         <svg viewBox="45 5 110 90" style={{ width: 38, height: 38, overflow: 'visible' }}>
                             <defs>
@@ -429,8 +483,10 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
 
             <style>{`
                 @keyframes esgas-leanFloat {
-                    0%, 100% { transform: translateY(0); }
-                    50% { transform: translateY(-8px); }
+                    0%, 100% { transform: translateY(0) rotate(0deg); }
+                    25%  { transform: translateY(-5px) rotate(-1.5deg); }
+                    50%  { transform: translateY(-10px) rotate(0deg); }
+                    75%  { transform: translateY(-5px) rotate(1.5deg); }
                 }
                 @keyframes esgas-blinkEyes {
                     0%, 90%, 100% { transform: scaleY(1); }
@@ -447,6 +503,29 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                 @keyframes esgas-pulse {
                     0%, 100% { opacity: 1; }
                     50% { opacity: 0.35; }
+                }
+                @keyframes esgas-armWave {
+                    0%, 65%, 100% { transform: rotate(0deg); }
+                    70% { transform: rotate(-30deg); }
+                    76% { transform: rotate(8deg); }
+                    82% { transform: rotate(-22deg); }
+                    88% { transform: rotate(4deg); }
+                    94% { transform: rotate(-8deg); }
+                }
+                @keyframes esgas-attention {
+                    0%, 90%, 100% { transform: scale(1) translateY(0); }
+                    92% { transform: scale(1.05) translateY(-4px); }
+                    94% { transform: scale(0.97) translateY(0); }
+                    96% { transform: scale(1.03) translateY(-2px); }
+                    98% { transform: scale(1) translateY(0); }
+                }
+                @keyframes esgas-labelGlow {
+                    0%, 100% { box-shadow: 0 8px 20px rgba(0,209,255,0.4); }
+                    50% { box-shadow: 0 8px 30px rgba(0,209,255,0.7), 0 0 18px rgba(0,112,255,0.25); }
+                }
+                @keyframes esgas-dotPulse {
+                    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.5), 0 0 8px rgba(239,68,68,0.5); }
+                    50% { transform: scale(1.25); box-shadow: 0 0 0 6px rgba(239,68,68,0), 0 0 14px rgba(239,68,68,0.3); }
                 }
             `}</style>
         </>
