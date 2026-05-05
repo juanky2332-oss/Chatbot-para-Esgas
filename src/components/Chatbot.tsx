@@ -27,8 +27,88 @@ function renderMarkdown(text: string): string {
 
 const WELCOME_MESSAGE: Message = {
     role: 'assistant',
-    content: 'Hola, soy tu agente técnico de ESGAS. ¿En qué puedo ayudarte?',
+    content: '¡Hola! ¿En qué puedo ayudarte?',
 };
+
+/* ── Headset avatar SVG — reutilizado en distintos tamaños ── */
+function HeadsetAvatar({
+    width,
+    bgId,
+    faceId,
+    glowId,
+    style,
+}: {
+    width: number;
+    bgId: string;
+    faceId: string;
+    glowId: string;
+    style?: React.CSSProperties;
+}) {
+    return (
+        <svg viewBox="0 0 120 120" style={{ width, height: 'auto', overflow: 'visible', ...style }}>
+            <defs>
+                <linearGradient id={bgId} x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#1B3A5C" />
+                    <stop offset="100%" stopColor="#0F172A" />
+                </linearGradient>
+                <linearGradient id={faceId} x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#F1F5F9" />
+                    <stop offset="100%" stopColor="#E2E8F0" />
+                </linearGradient>
+                <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+                    <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+            </defs>
+
+            {/* Background */}
+            <circle cx="60" cy="60" r="58" fill={`url(#${bgId})`} />
+            <circle cx="60" cy="60" r="55" fill="none" stroke="#00D1FF" strokeWidth="1" strokeOpacity="0.25" />
+
+            {/* Face */}
+            <circle cx="60" cy="63" r="25" fill={`url(#${faceId})`} />
+
+            {/* Eyes */}
+            <circle cx="51" cy="60" r="4.5" fill="#00D1FF" />
+            <circle cx="69" cy="60" r="4.5" fill="#00D1FF" />
+            <circle cx="52.5" cy="58.5" r="1.8" fill="white" fillOpacity="0.9" />
+            <circle cx="70.5" cy="58.5" r="1.8" fill="white" fillOpacity="0.9" />
+
+            {/* Smile */}
+            <path d="M51 70 Q60 77 69 70" fill="none" stroke="#475569" strokeWidth="2.5" strokeLinecap="round" />
+
+            {/* Headset band */}
+            <path
+                d="M19 62 Q19 29 60 29 Q101 29 101 62"
+                fill="none"
+                stroke="#00D1FF"
+                strokeWidth="7"
+                strokeLinecap="round"
+                filter={`url(#${glowId})`}
+            />
+
+            {/* Left ear cup */}
+            <ellipse cx="19" cy="66" rx="8.5" ry="12.5" fill="#00D1FF" />
+            <ellipse cx="19" cy="66" rx="5" ry="7.5" fill="#0F172A" />
+
+            {/* Right ear cup */}
+            <ellipse cx="101" cy="66" rx="8.5" ry="12.5" fill="#00D1FF" />
+            <ellipse cx="101" cy="66" rx="5" ry="7.5" fill="#0F172A" />
+
+            {/* Microphone arm (only visible at larger sizes) */}
+            {width >= 80 && (
+                <>
+                    <path d="M19 77 Q11 85 15 94" fill="none" stroke="#64748B" strokeWidth="3.5" strokeLinecap="round" />
+                    <circle cx="15" cy="96" r="5" fill="#00D1FF" />
+                    <circle cx="15" cy="96" r="2.5" fill="white" fillOpacity="0.4" />
+                </>
+            )}
+        </svg>
+    );
+}
 
 export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -83,18 +163,13 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
             const res = await fetch(WEBHOOK_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: text,
-                    sessionId: sessionId.current,
-                }),
+                body: JSON.stringify({ message: text, sessionId: sessionId.current }),
             });
 
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             const reply =
-                data.response ||
-                data.output ||
-                data.message ||
+                data.response || data.output || data.message ||
                 'No he podido procesar tu consulta, inténtalo de nuevo.';
 
             setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
@@ -103,8 +178,7 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                 ...prev,
                 {
                     role: 'assistant',
-                    content:
-                        'Vaya, parece que hay un problema de conexión. Inténtalo de nuevo o llámanos directamente al **+34 968 676 983**.',
+                    content: 'Vaya, parece que hay un problema de conexión. Inténtalo de nuevo o llámanos al **+34 968 676 983**.',
                 },
             ]);
         } finally {
@@ -122,7 +196,7 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
 
     return (
         <>
-            {/* ── FLOATING ROBOT BUTTON (bottom-right, always visible when chat closed) ── */}
+            {/* ── FLOATING WIDGET (bottom-right) ── */}
             {!isOpen && (
                 <div
                     style={{
@@ -139,158 +213,71 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     }}
                     onClick={openChat}
                 >
-                    {/* Inner wrapper — attention animation */}
+                    {/* Attention wrapper */}
                     <div style={{
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
                         animation: 'esgas-attention 14s ease-in-out 10s infinite',
                     }}>
-                        {/* Notification badge */}
+                        {/* Online badge */}
                         <div style={{
                             width: 13,
                             height: 13,
                             borderRadius: '50%',
-                            background: '#EF4444',
+                            background: '#22C55E',
                             border: '2.5px solid white',
                             alignSelf: 'flex-end',
-                            marginRight: 12,
+                            marginRight: 10,
                             marginBottom: -8,
                             position: 'relative',
                             zIndex: 2,
-                            animation: 'esgas-dotPulse 2.5s ease-in-out infinite',
-                            boxShadow: '0 0 8px rgba(239,68,68,0.5)',
+                            animation: 'esgas-onlinePulse 2.5s ease-in-out infinite',
+                            boxShadow: '0 0 8px rgba(34,197,94,0.6)',
                         }} />
 
-                        {/* Robot SVG — float + tilt */}
-                        <svg
-                            viewBox="0 0 200 120"
+                        {/* Headset avatar — float animation */}
+                        <HeadsetAvatar
+                            width={130}
+                            bgId="ft-bg"
+                            faceId="ft-face"
+                            glowId="ft-glow"
                             style={{
-                                width: 130,
-                                height: 'auto',
-                                overflow: 'visible',
                                 filter: 'drop-shadow(0 8px 22px rgba(0,0,0,0.28)) drop-shadow(0 2px 8px rgba(0,209,255,0.18))',
                                 animation: 'esgas-leanFloat 4s ease-in-out infinite',
                             }}
-                        >
-                            <defs>
-                                <linearGradient id="botGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#FFFFFF" />
-                                    <stop offset="100%" stopColor="#CBD5E1" />
-                                </linearGradient>
-                                <filter id="botShadow" x="-20%" y="-20%" width="140%" height="140%">
-                                    <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
-                                    <feOffset dx="0" dy="2" result="offsetblur" />
-                                    <feComponentTransfer>
-                                        <feFuncA type="linear" slope="0.3" />
-                                    </feComponentTransfer>
-                                    <feMerge>
-                                        <feMergeNode />
-                                        <feMergeNode in="SourceGraphic" />
-                                    </feMerge>
-                                </filter>
-                            </defs>
-
-                            {/* Body/Neck */}
-                            <rect x="75" y="80" width="50" height="30" rx="10" fill="#CBD5E1" />
-
-                            {/* Left arm — wave animation */}
-                            <g style={{
-                                transformBox: 'fill-box',
-                                transformOrigin: '50% 0%',
-                                animation: 'esgas-armWave 7s ease-in-out 5s infinite',
-                            }}>
-                                <path
-                                    d="M50 70 Q30 70 35 110"
-                                    stroke="url(#botGrad)"
-                                    strokeWidth="18"
-                                    strokeLinecap="round"
-                                    fill="none"
-                                />
-                                <rect x="25" y="105" width="45" height="15" rx="7" fill="#94A3B8" filter="url(#botShadow)" />
-                            </g>
-
-                            {/* Right arm */}
-                            <path
-                                d="M150 70 Q170 70 165 110"
-                                stroke="url(#botGrad)"
-                                strokeWidth="18"
-                                strokeLinecap="round"
-                                fill="none"
-                            />
-
-                            {/* Head */}
-                            <rect x="45" y="5" width="110" height="90" rx="45" fill="url(#botGrad)" />
-                            <rect x="55" y="20" width="90" height="50" rx="22" fill="#0F172A" />
-
-                            {/* Eyes */}
-                            <g style={{ animation: 'esgas-blinkEyes 4s infinite', transformOrigin: 'center 45px' }}>
-                                <circle cx="82" cy="45" r="9" fill="#00D1FF" />
-                                <circle cx="118" cy="45" r="9" fill="#00D1FF" />
-                                <circle cx="85" cy="42" r="3" fill="white" fillOpacity="0.8" />
-                                <circle cx="121" cy="42" r="3" fill="white" fillOpacity="0.8" />
-                            </g>
-
-                            {/* Smile */}
-                            <path
-                                d="M90 60 Q100 66 110 60"
-                                fill="none"
-                                stroke="#00D1FF"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                opacity="0.6"
-                            />
-
-                            {/* Antenna */}
-                            <line x1="100" y1="5" x2="100" y2="-8" stroke="#94A3B8" strokeWidth="4" />
-                            <circle
-                                cx="100"
-                                cy="-8"
-                                r="5"
-                                fill="#00D1FF"
-                                style={{ animation: 'esgas-pulseLight 1.5s infinite' }}
-                            />
-
-                            {/* Right hand */}
-                            <rect x="130" y="105" width="45" height="15" rx="7" fill="#94A3B8" filter="url(#botShadow)" />
-                        </svg>
+                        />
 
                         {/* Label */}
-                        <div
-                            style={{
-                                background: 'linear-gradient(to right, #00D1FF, #0070FF)',
-                                color: '#fff',
-                                padding: '10px 18px',
-                                borderRadius: 14,
-                                fontWeight: 800,
-                                fontSize: 11,
-                                letterSpacing: '0.06em',
-                                animation: 'esgas-labelGlow 3s ease-in-out infinite',
-                                marginTop: -10,
-                                position: 'relative',
-                                zIndex: 10,
-                                textAlign: 'center',
-                                textTransform: 'uppercase',
-                                border: '2px solid rgba(255,255,255,0.2)',
-                                minWidth: 130,
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
+                        <div style={{
+                            background: 'linear-gradient(to right, #00D1FF, #0070FF)',
+                            color: '#fff',
+                            padding: '10px 18px',
+                            borderRadius: 14,
+                            fontWeight: 800,
+                            fontSize: 11,
+                            letterSpacing: '0.06em',
+                            animation: 'esgas-labelGlow 3s ease-in-out infinite',
+                            marginTop: -10,
+                            position: 'relative',
+                            zIndex: 10,
+                            textAlign: 'center',
+                            textTransform: 'uppercase',
+                            border: '2px solid rgba(255,255,255,0.2)',
+                            minWidth: 130,
+                            whiteSpace: 'nowrap',
+                        }}>
                             ¿ALGUNA DUDA?
                         </div>
                     </div>
 
-                    {/* Powered by Flownexion */}
+                    {/* Powered by */}
                     <div style={{ marginTop: 6, fontSize: 10, color: '#94a3b8', fontWeight: 500, letterSpacing: '0.04em', textAlign: 'center' }}>
                         powered by{' '}
-                        <a
-                            href="https://flownexion.com/"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        <a href="https://flownexion.com/" target="_blank" rel="noopener noreferrer"
                             style={{ color: '#94a3b8', textDecoration: 'underline' }}
                             onMouseEnter={(e) => (e.currentTarget.style.color = '#00D1FF')}
-                            onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
-                        >
+                            onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}>
                             Flownexion
                         </a>
                     </div>
@@ -318,36 +305,16 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                 }}
             >
                 {/* Header */}
-                <div
-                    style={{
-                        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                        borderBottom: '1px solid rgba(0,209,255,0.15)',
-                        padding: '14px 16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        flexShrink: 0,
-                    }}
-                >
-                    <div style={{ width: 38, height: 38, flexShrink: 0, position: 'relative' }}>
-                        <svg viewBox="45 5 110 90" style={{ width: 38, height: 38, overflow: 'visible' }}>
-                            <defs>
-                                <linearGradient id="hdrGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#FFFFFF" />
-                                    <stop offset="100%" stopColor="#CBD5E1" />
-                                </linearGradient>
-                            </defs>
-                            <rect x="45" y="5" width="110" height="90" rx="45" fill="url(#hdrGrad)" />
-                            <rect x="55" y="20" width="90" height="50" rx="22" fill="#0F172A" />
-                            <circle cx="82" cy="45" r="9" fill="#00D1FF" />
-                            <circle cx="118" cy="45" r="9" fill="#00D1FF" />
-                            <circle cx="85" cy="42" r="3" fill="white" fillOpacity="0.8" />
-                            <circle cx="121" cy="42" r="3" fill="white" fillOpacity="0.8" />
-                            <path d="M90 60 Q100 66 110 60" fill="none" stroke="#00D1FF" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
-                            <line x1="100" y1="5" x2="100" y2="-5" stroke="#94A3B8" strokeWidth="4" />
-                            <circle cx="100" cy="-5" r="4" fill="#00D1FF" style={{ animation: 'esgas-pulseLight 1.5s infinite' }} />
-                        </svg>
-                    </div>
+                <div style={{
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                    borderBottom: '1px solid rgba(0,209,255,0.15)',
+                    padding: '14px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    flexShrink: 0,
+                }}>
+                    <HeadsetAvatar width={38} bgId="hdr-bg" faceId="hdr-face" glowId="hdr-glow" />
 
                     <div style={{ flex: 1 }}>
                         <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
@@ -355,10 +322,10 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                         </div>
                         <div style={{ color: '#00D1FF', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
                             <span style={{
-                                width: 6, height: 6, borderRadius: '50%', background: '#00D1FF',
-                                display: 'inline-block', animation: 'esgas-pulse 2s infinite',
+                                width: 6, height: 6, borderRadius: '50%', background: '#22C55E',
+                                display: 'inline-block', animation: 'esgas-onlinePulse 2s infinite',
                             }} />
-                            Rodamientos &amp; Transmisión de potencia
+                            En línea · Asistente técnico
                         </div>
                     </div>
 
@@ -378,33 +345,15 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                 </div>
 
                 {/* Messages */}
-                <div
-                    style={{
-                        flex: 1, overflowY: 'auto', padding: '16px 12px',
-                        display: 'flex', flexDirection: 'column', gap: 12,
-                        scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,209,255,0.2) transparent',
-                    }}
-                >
+                <div style={{
+                    flex: 1, overflowY: 'auto', padding: '16px 12px',
+                    display: 'flex', flexDirection: 'column', gap: 12,
+                    scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,209,255,0.2) transparent',
+                }}>
                     {messages.map((msg, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 8 }}>
                             {msg.role === 'assistant' && (
-                                <div style={{ width: 28, height: 28, flexShrink: 0 }}>
-                                    <svg viewBox="45 5 110 90" style={{ width: 28, height: 28, overflow: 'visible' }}>
-                                        <defs>
-                                            <linearGradient id="msgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                <stop offset="0%" stopColor="#FFFFFF" />
-                                                <stop offset="100%" stopColor="#CBD5E1" />
-                                            </linearGradient>
-                                        </defs>
-                                        <rect x="45" y="5" width="110" height="90" rx="45" fill="url(#msgGrad)" />
-                                        <rect x="55" y="20" width="90" height="50" rx="22" fill="#0F172A" />
-                                        <circle cx="82" cy="45" r="8" fill="#00D1FF" />
-                                        <circle cx="118" cy="45" r="8" fill="#00D1FF" />
-                                        <circle cx="85" cy="42" r="2.5" fill="white" fillOpacity="0.8" />
-                                        <circle cx="121" cy="42" r="2.5" fill="white" fillOpacity="0.8" />
-                                        <path d="M90 60 Q100 66 110 60" fill="none" stroke="#00D1FF" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
-                                    </svg>
-                                </div>
+                                <HeadsetAvatar width={28} bgId={`msg-bg-${i}`} faceId={`msg-face-${i}`} glowId={`msg-glow-${i}`} />
                             )}
                             <div
                                 style={{
@@ -422,22 +371,7 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     {/* Typing indicator */}
                     {isLoading && (
                         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-                            <div style={{ width: 28, height: 28, flexShrink: 0 }}>
-                                <svg viewBox="45 5 110 90" style={{ width: 28, height: 28, overflow: 'visible' }}>
-                                    <defs>
-                                        <linearGradient id="ldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                            <stop offset="0%" stopColor="#FFFFFF" />
-                                            <stop offset="100%" stopColor="#CBD5E1" />
-                                        </linearGradient>
-                                    </defs>
-                                    <rect x="45" y="5" width="110" height="90" rx="45" fill="url(#ldGrad)" />
-                                    <rect x="55" y="20" width="90" height="50" rx="22" fill="#0F172A" />
-                                    <circle cx="82" cy="45" r="8" fill="#00D1FF" />
-                                    <circle cx="118" cy="45" r="8" fill="#00D1FF" />
-                                    <circle cx="85" cy="42" r="2.5" fill="white" fillOpacity="0.8" />
-                                    <circle cx="121" cy="42" r="2.5" fill="white" fillOpacity="0.8" />
-                                </svg>
-                            </div>
+                            <HeadsetAvatar width={28} bgId="ld-bg" faceId="ld-face" glowId="ld-glow" />
                             <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: 5, alignItems: 'center' }}>
                                 {[0, 1, 2].map((n) => (
                                     <span key={n} style={{ width: 7, height: 7, borderRadius: '50%', background: '#00D1FF', display: 'inline-block', animation: `esgas-bounce 1.2s ease-in-out ${n * 0.2}s infinite` }} />
@@ -488,29 +422,9 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     50%  { transform: translateY(-10px) rotate(0deg); }
                     75%  { transform: translateY(-5px) rotate(1.5deg); }
                 }
-                @keyframes esgas-blinkEyes {
-                    0%, 90%, 100% { transform: scaleY(1); }
-                    95% { transform: scaleY(0.1); }
-                }
-                @keyframes esgas-pulseLight {
-                    0%, 100% { fill: #00d1ff; }
-                    50% { fill: #fff; }
-                }
                 @keyframes esgas-bounce {
                     0%, 80%, 100% { transform: translateY(0); opacity: 0.6; }
                     40% { transform: translateY(-6px); opacity: 1; }
-                }
-                @keyframes esgas-pulse {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.35; }
-                }
-                @keyframes esgas-armWave {
-                    0%, 65%, 100% { transform: rotate(0deg); }
-                    70% { transform: rotate(-30deg); }
-                    76% { transform: rotate(8deg); }
-                    82% { transform: rotate(-22deg); }
-                    88% { transform: rotate(4deg); }
-                    94% { transform: rotate(-8deg); }
                 }
                 @keyframes esgas-attention {
                     0%, 90%, 100% { transform: scale(1) translateY(0); }
@@ -523,9 +437,9 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     0%, 100% { box-shadow: 0 8px 20px rgba(0,209,255,0.4); }
                     50% { box-shadow: 0 8px 30px rgba(0,209,255,0.7), 0 0 18px rgba(0,112,255,0.25); }
                 }
-                @keyframes esgas-dotPulse {
-                    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.5), 0 0 8px rgba(239,68,68,0.5); }
-                    50% { transform: scale(1.25); box-shadow: 0 0 0 6px rgba(239,68,68,0), 0 0 14px rgba(239,68,68,0.3); }
+                @keyframes esgas-onlinePulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.45; }
                 }
             `}</style>
         </>
