@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { BotIcon } from './LeanRobot';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -17,11 +18,11 @@ function renderMarkdown(text: string): string {
     return text
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/^### (.+)$/gm, '<strong style="font-size:14px;color:#00D1FF;display:block;margin-top:8px">$1</strong>')
+        .replace(/^### (.+)$/gm, '<strong style="font-size:14px;color:#2980B9;display:block;margin-top:8px">$1</strong>')
         .replace(/^#### (.+)$/gm, '<strong style="font-size:13px;color:#94a3b8;display:block;margin-top:6px">$1</strong>')
         .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:6px 0"/>')
-        .replace(/^[-•] (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#00D1FF;flex-shrink:0">•</span><span>$1</span></span>')
-        .replace(/^(\d+)\. (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#00D1FF;flex-shrink:0;min-width:16px">$1.</span><span>$2</span></span>')
+        .replace(/^[-•] (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#2980B9;flex-shrink:0">•</span><span>$1</span></span>')
+        .replace(/^(\d+)\. (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#2980B9;flex-shrink:0;min-width:16px">$1.</span><span>$2</span></span>')
         .replace(/\n/g, '<br/>');
 }
 
@@ -30,89 +31,9 @@ const WELCOME_MESSAGE: Message = {
     content: '¡Hola! ¿En qué puedo ayudarte?',
 };
 
-/* ── Headset avatar SVG — reutilizado en distintos tamaños ── */
-function HeadsetAvatar({
-    width,
-    bgId,
-    faceId,
-    glowId,
-    style,
-}: {
-    width: number;
-    bgId: string;
-    faceId: string;
-    glowId: string;
-    style?: React.CSSProperties;
-}) {
-    return (
-        <svg viewBox="0 0 120 120" style={{ width, height: 'auto', overflow: 'visible', ...style }}>
-            <defs>
-                <linearGradient id={bgId} x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#1B3A5C" />
-                    <stop offset="100%" stopColor="#0F172A" />
-                </linearGradient>
-                <linearGradient id={faceId} x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#F1F5F9" />
-                    <stop offset="100%" stopColor="#E2E8F0" />
-                </linearGradient>
-                <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
-                    <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-                    <feMerge>
-                        <feMergeNode in="blur" />
-                        <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                </filter>
-            </defs>
-
-            {/* Background */}
-            <circle cx="60" cy="60" r="58" fill={`url(#${bgId})`} />
-            <circle cx="60" cy="60" r="55" fill="none" stroke="#00D1FF" strokeWidth="1" strokeOpacity="0.25" />
-
-            {/* Face */}
-            <circle cx="60" cy="63" r="25" fill={`url(#${faceId})`} />
-
-            {/* Eyes */}
-            <circle cx="51" cy="60" r="4.5" fill="#00D1FF" />
-            <circle cx="69" cy="60" r="4.5" fill="#00D1FF" />
-            <circle cx="52.5" cy="58.5" r="1.8" fill="white" fillOpacity="0.9" />
-            <circle cx="70.5" cy="58.5" r="1.8" fill="white" fillOpacity="0.9" />
-
-            {/* Smile */}
-            <path d="M51 70 Q60 77 69 70" fill="none" stroke="#475569" strokeWidth="2.5" strokeLinecap="round" />
-
-            {/* Headset band */}
-            <path
-                d="M19 62 Q19 29 60 29 Q101 29 101 62"
-                fill="none"
-                stroke="#00D1FF"
-                strokeWidth="7"
-                strokeLinecap="round"
-                filter={`url(#${glowId})`}
-            />
-
-            {/* Left ear cup */}
-            <ellipse cx="19" cy="66" rx="8.5" ry="12.5" fill="#00D1FF" />
-            <ellipse cx="19" cy="66" rx="5" ry="7.5" fill="#0F172A" />
-
-            {/* Right ear cup */}
-            <ellipse cx="101" cy="66" rx="8.5" ry="12.5" fill="#00D1FF" />
-            <ellipse cx="101" cy="66" rx="5" ry="7.5" fill="#0F172A" />
-
-            {/* Microphone arm (only visible at larger sizes) */}
-            {width >= 80 && (
-                <>
-                    <path d="M19 77 Q11 85 15 94" fill="none" stroke="#64748B" strokeWidth="3.5" strokeLinecap="round" />
-                    <circle cx="15" cy="96" r="5" fill="#00D1FF" />
-                    <circle cx="15" cy="96" r="2.5" fill="white" fillOpacity="0.4" />
-                </>
-            )}
-        </svg>
-    );
-}
-
 export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [isLeaning, setIsLeaning] = useState(false);
+    const [isPressed, setIsPressed] = useState(false);
     const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -121,8 +42,8 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
     const inputRef = useRef<HTMLInputElement>(null);
 
     const openChat = useCallback(() => {
-        setIsLeaning(true);
-        setTimeout(() => setIsLeaning(false), 200);
+        setIsPressed(true);
+        setTimeout(() => setIsPressed(false), 200);
         setIsOpen(true);
     }, []);
 
@@ -165,21 +86,14 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: text, sessionId: sessionId.current }),
             });
-
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            const reply =
-                data.response || data.output || data.message ||
-                'No he podido procesar tu consulta, inténtalo de nuevo.';
-
+            const reply = data.response || data.output || data.message || 'No he podido procesar tu consulta, inténtalo de nuevo.';
             setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
         } catch {
             setMessages((prev) => [
                 ...prev,
-                {
-                    role: 'assistant',
-                    content: 'Vaya, parece que hay un problema de conexión. Inténtalo de nuevo o llámanos al **+34 968 676 983**.',
-                },
+                { role: 'assistant', content: 'Vaya, hay un problema de conexión. Inténtalo de nuevo o llámanos al **+34 968 676 983**.' },
             ]);
         } finally {
             setIsLoading(false);
@@ -196,87 +110,55 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
 
     return (
         <>
-            {/* ── FLOATING WIDGET (bottom-right) ── */}
+            {/* ── FLOATING WIDGET ── */}
             {!isOpen && (
                 <div
                     style={{
-                        position: 'fixed',
-                        bottom: 12,
-                        right: 16,
-                        zIndex: 999998,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
+                        position: 'fixed', bottom: 12, right: 16, zIndex: 999998,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center',
                         cursor: 'pointer',
-                        transform: isLeaning ? 'scale(0.93)' : 'scale(1)',
+                        transform: isPressed ? 'scale(0.93)' : 'scale(1)',
                         transition: 'transform 0.15s ease',
                     }}
                     onClick={openChat}
                 >
-                    {/* Attention wrapper */}
-                    <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        animation: 'esgas-attention 14s ease-in-out 10s infinite',
-                    }}>
-                        {/* Online badge */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'esgas-attention 14s ease-in-out 10s infinite' }}>
+                        {/* Online dot */}
                         <div style={{
-                            width: 13,
-                            height: 13,
-                            borderRadius: '50%',
-                            background: '#22C55E',
-                            border: '2.5px solid white',
-                            alignSelf: 'flex-end',
-                            marginRight: 10,
-                            marginBottom: -8,
-                            position: 'relative',
-                            zIndex: 2,
+                            width: 12, height: 12, borderRadius: '50%', background: '#22C55E',
+                            border: '2px solid white', alignSelf: 'flex-end', marginRight: 8,
+                            marginBottom: -8, position: 'relative', zIndex: 2,
                             animation: 'esgas-onlinePulse 2.5s ease-in-out infinite',
                             boxShadow: '0 0 8px rgba(34,197,94,0.6)',
                         }} />
 
-                        {/* Headset avatar — float animation */}
-                        <HeadsetAvatar
-                            width={130}
-                            bgId="ft-bg"
-                            faceId="ft-face"
-                            glowId="ft-glow"
-                            style={{
-                                filter: 'drop-shadow(0 8px 22px rgba(0,0,0,0.28)) drop-shadow(0 2px 8px rgba(0,209,255,0.18))',
-                                animation: 'esgas-leanFloat 4s ease-in-out infinite',
+                        <BotIcon
+                            width={120}
+                            instanceId="ft"
+                            animStyle={{
+                                filter: 'drop-shadow(0 8px 20px rgba(0,0,0,0.25)) drop-shadow(0 2px 8px rgba(41,128,185,0.2))',
+                                animation: 'esgas-float 4s ease-in-out infinite',
                             }}
                         />
 
-                        {/* Label */}
                         <div style={{
-                            background: 'linear-gradient(to right, #00D1FF, #0070FF)',
-                            color: '#fff',
-                            padding: '10px 18px',
-                            borderRadius: 14,
-                            fontWeight: 800,
-                            fontSize: 11,
-                            letterSpacing: '0.06em',
+                            background: 'linear-gradient(to right, #1A4F8A, #2980B9)',
+                            color: '#fff', padding: '10px 18px', borderRadius: 14,
+                            fontWeight: 800, fontSize: 11, letterSpacing: '0.06em',
                             animation: 'esgas-labelGlow 3s ease-in-out infinite',
-                            marginTop: -10,
-                            position: 'relative',
-                            zIndex: 10,
-                            textAlign: 'center',
-                            textTransform: 'uppercase',
-                            border: '2px solid rgba(255,255,255,0.2)',
-                            minWidth: 130,
-                            whiteSpace: 'nowrap',
+                            marginTop: -8, position: 'relative', zIndex: 10,
+                            textAlign: 'center', textTransform: 'uppercase',
+                            border: '2px solid rgba(255,255,255,0.2)', minWidth: 130, whiteSpace: 'nowrap',
                         }}>
                             ¿ALGUNA DUDA?
                         </div>
                     </div>
 
-                    {/* Powered by */}
                     <div style={{ marginTop: 6, fontSize: 10, color: '#94a3b8', fontWeight: 500, letterSpacing: '0.04em', textAlign: 'center' }}>
                         powered by{' '}
                         <a href="https://flownexion.com/" target="_blank" rel="noopener noreferrer"
                             style={{ color: '#94a3b8', textDecoration: 'underline' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.color = '#00D1FF')}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = '#2980B9')}
                             onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}>
                             Flownexion
                         </a>
@@ -285,81 +167,55 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
             )}
 
             {/* ── CHAT PANEL ── */}
-            <div
-                style={{
-                    position: 'fixed',
-                    bottom: 16,
-                    right: 16,
-                    zIndex: 999999,
-                    width: isOpen ? 'min(420px, calc(100vw - 32px))' : 0,
-                    height: isOpen ? 'min(580px, calc(100dvh - 32px))' : 0,
-                    opacity: isOpen ? 1 : 0,
-                    pointerEvents: isOpen ? 'all' : 'none',
-                    transition: 'width 0.3s ease, height 0.3s ease, opacity 0.25s ease',
-                    borderRadius: 18,
-                    boxShadow: '0 24px 64px rgba(0,0,0,0.3), 0 4px 16px rgba(0,209,255,0.12)',
-                    overflow: 'hidden',
-                    background: '#0f172a',
-                    display: 'flex',
-                    flexDirection: 'column',
-                }}
-            >
+            <div style={{
+                position: 'fixed', bottom: 16, right: 16, zIndex: 999999,
+                width: isOpen ? 'min(420px, calc(100vw - 32px))' : 0,
+                height: isOpen ? 'min(580px, calc(100dvh - 32px))' : 0,
+                opacity: isOpen ? 1 : 0,
+                pointerEvents: isOpen ? 'all' : 'none',
+                transition: 'width 0.3s ease, height 0.3s ease, opacity 0.25s ease',
+                borderRadius: 18,
+                boxShadow: '0 24px 64px rgba(0,0,0,0.3), 0 4px 16px rgba(41,128,185,0.15)',
+                overflow: 'hidden', background: '#0f172a',
+                display: 'flex', flexDirection: 'column',
+            }}>
                 {/* Header */}
                 <div style={{
                     background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                    borderBottom: '1px solid rgba(0,209,255,0.15)',
-                    padding: '14px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    flexShrink: 0,
+                    borderBottom: '1px solid rgba(41,128,185,0.2)',
+                    padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
                 }}>
-                    <HeadsetAvatar width={38} bgId="hdr-bg" faceId="hdr-face" glowId="hdr-glow" />
+                    <BotIcon width={42} instanceId="hdr" />
 
                     <div style={{ flex: 1 }}>
-                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
-                            ESGAS
-                        </div>
-                        <div style={{ color: '#00D1FF', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                            <span style={{
-                                width: 6, height: 6, borderRadius: '50%', background: '#22C55E',
-                                display: 'inline-block', animation: 'esgas-onlinePulse 2s infinite',
-                            }} />
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>ESGAS</div>
+                        <div style={{ color: '#2980B9', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22C55E', display: 'inline-block', animation: 'esgas-onlinePulse 2s infinite' }} />
                             En línea · Asistente técnico
                         </div>
                     </div>
 
                     <button
                         onClick={() => setIsOpen(false)}
-                        style={{
-                            background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: 8,
-                            color: '#94a3b8', cursor: 'pointer', padding: '6px 9px',
-                            fontSize: 15, lineHeight: 1, transition: 'background 0.15s, color 0.15s',
-                        }}
+                        style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', padding: '6px 9px', fontSize: 15, lineHeight: 1, transition: 'background 0.15s, color 0.15s' }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.14)'; e.currentTarget.style.color = '#fff'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = '#94a3b8'; }}
                         aria-label="Cerrar chat"
-                    >
-                        ✕
-                    </button>
+                    >✕</button>
                 </div>
 
                 {/* Messages */}
-                <div style={{
-                    flex: 1, overflowY: 'auto', padding: '16px 12px',
-                    display: 'flex', flexDirection: 'column', gap: 12,
-                    scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,209,255,0.2) transparent',
-                }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 12, scrollbarWidth: 'thin', scrollbarColor: 'rgba(41,128,185,0.2) transparent' }}>
                     {messages.map((msg, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 8 }}>
                             {msg.role === 'assistant' && (
-                                <HeadsetAvatar width={28} bgId={`msg-bg-${i}`} faceId={`msg-face-${i}`} glowId={`msg-glow-${i}`} />
+                                <BotIcon width={30} instanceId={`msg${i}`} />
                             )}
                             <div
                                 style={{
                                     maxWidth: '78%', padding: '10px 14px',
                                     borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                                    background: msg.role === 'user' ? 'linear-gradient(135deg, #00D1FF, #0070FF)' : 'rgba(255,255,255,0.07)',
+                                    background: msg.role === 'user' ? 'linear-gradient(135deg, #1A4F8A, #2980B9)' : 'rgba(255,255,255,0.07)',
                                     border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.08)' : 'none',
                                     color: '#fff', fontSize: 13.5, lineHeight: 1.6, wordBreak: 'break-word',
                                 }}
@@ -368,18 +224,16 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                         </div>
                     ))}
 
-                    {/* Typing indicator */}
                     {isLoading && (
                         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-                            <HeadsetAvatar width={28} bgId="ld-bg" faceId="ld-face" glowId="ld-glow" />
+                            <BotIcon width={30} instanceId="ld" />
                             <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: 5, alignItems: 'center' }}>
                                 {[0, 1, 2].map((n) => (
-                                    <span key={n} style={{ width: 7, height: 7, borderRadius: '50%', background: '#00D1FF', display: 'inline-block', animation: `esgas-bounce 1.2s ease-in-out ${n * 0.2}s infinite` }} />
+                                    <span key={n} style={{ width: 7, height: 7, borderRadius: '50%', background: '#2980B9', display: 'inline-block', animation: `esgas-bounce 1.2s ease-in-out ${n * 0.2}s infinite` }} />
                                 ))}
                             </div>
                         </div>
                     )}
-
                     <div ref={messagesEndRef} />
                 </div>
 
@@ -393,13 +247,13 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                         placeholder="Escribe tu consulta aquí..."
                         disabled={isLoading}
                         style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 13.5, padding: '10px 14px', outline: 'none', transition: 'border-color 0.15s' }}
-                        onFocus={(e) => (e.target.style.borderColor = 'rgba(0,209,255,0.45)')}
+                        onFocus={(e) => (e.target.style.borderColor = 'rgba(41,128,185,0.5)')}
                         onBlur={(e) => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
                     />
                     <button
                         onClick={sendMessage}
                         disabled={isLoading || !input.trim()}
-                        style={{ width: 42, height: 42, borderRadius: 12, border: 'none', cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer', background: isLoading || !input.trim() ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #00D1FF, #0070FF)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', opacity: isLoading || !input.trim() ? 0.45 : 1 }}
+                        style={{ width: 42, height: 42, borderRadius: 12, border: 'none', cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer', background: isLoading || !input.trim() ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #1A4F8A, #2980B9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', opacity: isLoading || !input.trim() ? 0.45 : 1 }}
                         aria-label="Enviar"
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -416,11 +270,11 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
             </div>
 
             <style>{`
-                @keyframes esgas-leanFloat {
+                @keyframes esgas-float {
                     0%, 100% { transform: translateY(0) rotate(0deg); }
-                    25%  { transform: translateY(-5px) rotate(-1.5deg); }
+                    25%  { transform: translateY(-5px) rotate(-1deg); }
                     50%  { transform: translateY(-10px) rotate(0deg); }
-                    75%  { transform: translateY(-5px) rotate(1.5deg); }
+                    75%  { transform: translateY(-5px) rotate(1deg); }
                 }
                 @keyframes esgas-bounce {
                     0%, 80%, 100% { transform: translateY(0); opacity: 0.6; }
@@ -434,12 +288,12 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     98% { transform: scale(1) translateY(0); }
                 }
                 @keyframes esgas-labelGlow {
-                    0%, 100% { box-shadow: 0 8px 20px rgba(0,209,255,0.4); }
-                    50% { box-shadow: 0 8px 30px rgba(0,209,255,0.7), 0 0 18px rgba(0,112,255,0.25); }
+                    0%, 100% { box-shadow: 0 8px 20px rgba(26,79,138,0.45); }
+                    50% { box-shadow: 0 8px 30px rgba(41,128,185,0.7), 0 0 18px rgba(41,128,185,0.25); }
                 }
                 @keyframes esgas-onlinePulse {
                     0%, 100% { opacity: 1; }
-                    50% { opacity: 0.45; }
+                    50% { opacity: 0.4; }
                 }
             `}</style>
         </>
