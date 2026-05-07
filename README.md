@@ -1,31 +1,34 @@
-# ESGAS AI Chatbot — Especificación de Proyecto
+# Chatbot IA — Suministros ESGAS
 
-Widget de inteligencia artificial para la web B2B de **ESGAS** (suministros industriales: rodamientos, retenes, correas y transmisión de potencia). Permite a los clientes consultar equivalencias técnicas, ficha de producto, disponibilidad de stock y precios personalizados sin salir de la web.
+Asistente conversacional con inteligencia artificial para el portal B2B de Suministros ESGAS. Proporciona soporte técnico sobre productos industriales (rodamientos, retenes, correas y transmisión de potencia), consulta precios y stock en tiempo real desde PrestaShop, y permite añadir artículos al carrito directamente desde el chat.
 
 ---
 
-## Arquitectura
+## Estado del proyecto
 
-```
-Cliente web (esgas.es / PrestaShop)
-        │
-        │  embed widget (<script> o <iframe>)
-        ▼
-Next.js + TypeScript · Vercel
-   /src/components/Chatbot.tsx   ← widget flotante
-   /src/app/embed/               ← página embebible vía iframe
-   /src/app/api/chat/route.ts    ← proxy al webhook n8n
-        │
-        │  POST { message, sessionId }
-        ▼
-n8n Workflow (Transformaconia Cloud)
-   Webhook → AI Agent (GPT-4o, temp 0.1) → Responder JSON
-   Sub-nodos: Memoria RAM (20 msgs) · Búsqueda web (Tavily/DuckDuckGo)
-        │
-        │  (futuro) API REST PrestaShop B2B
-        ▼
-PrestaShop B2B  →  stock · precio por cliente · añadir al carrito
-```
+| Bloque | Estado |
+|---|---|
+| Widget flotante + panel de chat | ✅ Producción |
+| Agente IA (equivalencias + specs técnicas NTN/SNR) | ✅ Producción |
+| Embed iframe para PrestaShop | ✅ Producción |
+| Integración PrestaShop API (precio/stock/carrito) | 🔴 Pendiente — requiere acceso API del cliente |
+| Base de datos catálogo propio (Excel/CSV) | 🔴 Pendiente — requiere entregable del cliente |
+| Documentación oficial marcas confirmadas | 🔴 Pendiente — requiere entregable del cliente |
+
+---
+
+## Información del proyecto
+
+| Atributo | Detalle |
+|---|---|
+| **Cliente** | Suministros ESGAS *(razón social y CIF pendientes de confirmar)* |
+| **Proveedor** | Flownexion |
+| **Frontend** | Next.js 15 · TypeScript · Tailwind CSS |
+| **Despliegue** | Vercel — auto-deploy desde rama `main` |
+| **Backend IA** | n8n workflow (webhook → GPT-4o → respuesta JSON) |
+| **Modelo IA** | GPT-4o · temperatura 0.1 · maxIterations 25 |
+| **Integración comercial** | PrestaShop B2B vía API REST *(pendiente)* |
+| **Repositorio** | [github.com/juanky2332-oss/Chatbot-para-Esgas](https://github.com/juanky2332-oss/Chatbot-para-Esgas) |
 
 ---
 
@@ -39,31 +42,72 @@ PrestaShop B2B  →  stock · precio por cliente · añadir al carrito
 
 ---
 
-## Stack
+## Arquitectura
 
-- **Frontend**: Next.js 15 · TypeScript · Tailwind CSS
-- **Deploy**: Vercel (auto-deploy desde rama `main`)
-- **Orquestación IA**: n8n self-hosted (Transformaconia)
-- **Modelo**: GPT-4o (OpenAI) — temperatura 0.1
-- **Memoria de conversación**: RAM buffer, 20 mensajes por sesión
+```
+Usuario (portal B2B esgas.es)
+        │
+        │  Widget embebido vía <iframe> o <script>
+        ▼
+Next.js + TypeScript · Vercel
+   /src/components/Chatbot.tsx     ← widget flotante
+   /src/app/embed/                 ← versión embebible
+   /src/app/api/chat/route.ts      ← proxy → n8n (oculta webhook)
+        │
+        │  POST { message, sessionId }
+        ▼
+n8n Workflow (Transformaconia Cloud)
+   Webhook → AI Agent (GPT-4o, temp 0.1) → Responder JSON
+   Sub-nodos: Memoria RAM (20 msgs) · Búsqueda web (Tavily/DuckDuckGo)
+        │
+        │  (pendiente) API REST PrestaShop B2B
+        ▼
+PrestaShop B2B  →  precio por cliente · stock · carrito
+```
+
+---
+
+## Setup rápido (desarrollo local)
+
+```bash
+# 1. Instalar dependencias
+npm install
+
+# 2. Variables de entorno
+cp .env.example .env.local
+# Editar .env.local con los valores correctos
+
+# 3. Arrancar
+npm run dev
+# Abre http://localhost:3000
+```
+
+### Variables de entorno requeridas
+
+```env
+# Obligatorias
+N8N_WEBHOOK_URL=https://paneln8n.transformaconia.com/webhook/031ab1e6-d64e-41f0-b03e-f5c0681a6491
+
+# Requeridas cuando se integre PrestaShop
+PRESTASHOP_API_URL=https://esgas.es/api/
+PRESTASHOP_API_KEY=
+```
 
 ---
 
 ## Instalación del widget en PrestaShop
 
-### Opción A — iframe embebido
+### Opción A — iframe embebido (recomendado)
 
 ```html
 <iframe
   src="https://chatbot-para-esgas.vercel.app/embed"
-  style="position:fixed;bottom:0;right:0;width:460px;height:640px;border:none;z-index:9999"
+  style="position:fixed;bottom:0;right:0;width:460px;height:640px;border:none;z-index:9999999"
   allow="clipboard-write"
 ></iframe>
 ```
 
-### Opción B — Script en el tema
-
-Añadir en el `<head>` de PrestaShop:
+### Opción B — Script dinámico
 
 ```html
 <script>
@@ -79,38 +123,16 @@ Añadir en el `<head>` de PrestaShop:
 
 ---
 
-## Desarrollo local
-
-```bash
-npm install
-npm run dev
-# Abre http://localhost:3000
-```
-
----
-
-## Documentación adicional
+## Documentación
 
 | Documento | Descripción |
 |---|---|
-| [docs/alcance-funcional.md](docs/alcance-funcional.md) | Funcionalidades cubiertas y excluidas |
-| [docs/integraciones.md](docs/integraciones.md) | n8n, PrestaShop API, Vercel |
-| [docs/dependencias-cliente.md](docs/dependencias-cliente.md) | Entregables requeridos al cliente |
-| [docs/criterios-aceptacion.md](docs/criterios-aceptacion.md) | Criterios de aceptación por bloque funcional |
-| [docs/riesgos-y-pendientes.md](docs/riesgos-y-pendientes.md) | Riesgos técnicos y puntos abiertos |
-
----
-
-## Estado del proyecto
-
-| Bloque | Estado |
-|---|---|
-| Widget flotante + panel de chat | ✅ Producción |
-| Agente IA (equivalencias + specs técnicas) | ✅ Producción |
-| Embed iframe para PrestaShop | ✅ Producción |
-| Integración PrestaShop API (stock/precio/carrito) | 🔴 Pendiente — requiere acceso API del cliente |
-| Base de datos catálogo propia (Excel/CSV) | 🔴 Pendiente — requiere entregable del cliente |
-| Documentación oficial marcas confirmadas | 🔴 Pendiente — requiere entregable del cliente |
+| [SPEC.md](./SPEC.md) | Especificación general del proyecto |
+| [docs/alcance-funcional.md](./docs/alcance-funcional.md) | Funcionalidades, exclusiones y límites del sistema |
+| [docs/integraciones.md](./docs/integraciones.md) | APIs, sistemas externos y contratos de integración |
+| [docs/dependencias-cliente.md](./docs/dependencias-cliente.md) | Entregables y accesos requeridos al cliente |
+| [docs/criterios-aceptacion.md](./docs/criterios-aceptacion.md) | Condiciones de aceptación por bloque funcional |
+| [docs/riesgos-y-pendientes.md](./docs/riesgos-y-pendientes.md) | Riesgos técnicos, operativos y decisiones abiertas |
 
 ---
 
