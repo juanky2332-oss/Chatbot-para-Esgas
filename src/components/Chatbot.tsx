@@ -3,32 +3,61 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { BotIcon } from './LeanRobot';
 
+interface ProductCard {
+    ref: string;
+    name?: string;
+    url: string;
+    stock?: number | string;
+}
+
 interface Message {
     role: 'user' | 'assistant';
     content: string;
+    cards?: ProductCard[];
 }
 
 const WEBHOOK_URL = '/api/chat';
 
+const QUICK_REPLIES = [
+    'Necesito una equivalencia',
+    '¿Tenéis stock de un rodamiento?',
+    'Consulta técnica',
+    'Ver catálogo',
+];
+
 function generateSessionId() {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
+
+function parseProductCards(text: string): { text: string; cards: ProductCard[] } {
+    const match = text.match(/```products\n([\s\S]*?)\n```/);
+    if (!match) return { text, cards: [] };
+    try {
+        const cards = JSON.parse(match[1]) as ProductCard[];
+        const cleanText = text.replace(/```products\n[\s\S]*?\n```\n?/, '').trim();
+        return { text: cleanText, cards };
+    } catch {
+        return { text, cards: [] };
+    }
 }
 
 function renderMarkdown(text: string): string {
     return text
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/^### (.+)$/gm, '<strong style="font-size:14px;color:#2980B9;display:block;margin-top:8px">$1</strong>')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline">$1</a>')
+        .replace(/^### (.+)$/gm, '<strong style="font-size:14px;color:#38bdf8;display:block;margin-top:8px">$1</strong>')
         .replace(/^#### (.+)$/gm, '<strong style="font-size:13px;color:#94a3b8;display:block;margin-top:6px">$1</strong>')
         .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:6px 0"/>')
-        .replace(/^[-•] (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#2980B9;flex-shrink:0">•</span><span>$1</span></span>')
-        .replace(/^(\d+)\. (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#2980B9;flex-shrink:0;min-width:16px">$1.</span><span>$2</span></span>')
+        .replace(/^[-•] (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#38bdf8;flex-shrink:0">•</span><span>$1</span></span>')
+        .replace(/^(\d+)\. (.+)$/gm, '<span style="display:flex;gap:6px;margin:2px 0"><span style="color:#38bdf8;flex-shrink:0;min-width:16px">$1.</span><span>$2</span></span>')
+        .replace(/(https?:\/\/[^\s<>"()[\]]+)/g, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;word-break:break-all">${url}</a>`)
         .replace(/\n/g, '<br/>');
 }
 
 const WELCOME_MESSAGE: Message = {
     role: 'assistant',
-    content: '¡Hola! ¿En qué puedo ayudarte?',
+    content: '¡Hola! ¿En qué puedo ayudarte?\n\n¿Buscas un producto, tienes una duda técnica o necesitas una equivalencia?',
 };
 
 export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) {
@@ -37,6 +66,7 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
     const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showQuickReplies, setShowQuickReplies] = useState(true);
     const sessionId = useRef(generateSessionId());
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -72,28 +102,34 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
         }
     }, [isOpen, embedMode]);
 
-    const sendMessage = async () => {
-        const text = input.trim();
-        if (!text || isLoading) return;
+    const sendMessage = async (text?: string) => {
+        const msgText = (text ?? input).trim();
+        if (!msgText || isLoading) return;
 
         setInput('');
-        setMessages((prev) => [...prev, { role: 'user', content: text }]);
+        setShowQuickReplies(false);
+        setMessages((prev) => [...prev, { role: 'user', content: msgText }]);
         setIsLoading(true);
 
         try {
             const res = await fetch(WEBHOOK_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text, sessionId: sessionId.current }),
+                body: JSON.stringify({ message: msgText, sessionId: sessionId.current }),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            const reply = data.response || data.output || data.message || 'No he podido procesar tu consulta, inténtalo de nuevo.';
-            setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+            const rawReply = data.response || data.output || data.message || 'No he podido procesar tu consulta, inténtalo de nuevo.';
+            const { text: cleanText, cards } = parseProductCards(rawReply);
+            setMessages((prev) => [...prev, {
+                role: 'assistant',
+                content: cleanText,
+                cards: cards.length ? cards : undefined,
+            }]);
         } catch {
             setMessages((prev) => [
                 ...prev,
-                { role: 'assistant', content: 'Vaya, hay un problema de conexión. Inténtalo de nuevo o llámanos al **+34 968 676 983**.' },
+                { role: 'assistant', content: 'Hay un problema de conexión. Inténtalo de nuevo o llámanos al **+34 968 676 983**.' },
             ]);
         } finally {
             setIsLoading(false);
@@ -108,10 +144,26 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
         }
     };
 
+    const stockColor = (stock: number | string | undefined) => {
+        if (stock === undefined || stock === null) return '#94a3b8';
+        if (typeof stock === 'string') return '#94a3b8';
+        if (stock === 0) return '#EF4444';
+        if (stock < 20) return '#F59E0B';
+        return '#22C55E';
+    };
+
+    const stockLabel = (stock: number | string | undefined) => {
+        if (stock === undefined || stock === null) return 'Consultar disponibilidad';
+        if (typeof stock === 'string') return stock;
+        if (stock === 0) return 'Sin stock — consultar';
+        if (stock < 0) return 'Ver disponibilidad en tienda';
+        return `${stock} uds. disponibles`;
+    };
+
     return (
         <>
-            {/* ── FLOATING WIDGET ── */}
-            {!isOpen && (
+            {/* ── FLOATING WIDGET (solo cuando está cerrado y NO en modo embed) ── */}
+            {!isOpen && !embedMode && (
                 <div
                     style={{
                         position: 'fixed', bottom: 12, right: 16, zIndex: 999998,
@@ -123,7 +175,6 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     onClick={openChat}
                 >
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'esgas-attention 14s ease-in-out 10s infinite' }}>
-                        {/* Online dot */}
                         <div style={{
                             width: 12, height: 12, borderRadius: '50%', background: '#22C55E',
                             border: '2px solid white', alignSelf: 'flex-end', marginRight: 8,
@@ -131,7 +182,6 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                             animation: 'esgas-onlinePulse 2.5s ease-in-out infinite',
                             boxShadow: '0 0 8px rgba(34,197,94,0.6)',
                         }} />
-
                         <BotIcon
                             width={120}
                             instanceId="ft"
@@ -140,7 +190,6 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                                 animation: 'esgas-float 4s ease-in-out infinite',
                             }}
                         />
-
                         <div style={{
                             background: 'linear-gradient(to right, #1A4F8A, #2980B9)',
                             color: '#fff', padding: '10px 18px', borderRadius: 14,
@@ -153,7 +202,6 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                             ¿ALGUNA DUDA?
                         </div>
                     </div>
-
                     <div style={{ marginTop: 6, fontSize: 10, color: '#94a3b8', fontWeight: 500, letterSpacing: '0.04em', textAlign: 'center' }}>
                         powered by{' '}
                         <a href="https://flownexion.com/" target="_blank" rel="noopener noreferrer"
@@ -170,7 +218,7 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
             <div style={{
                 position: 'fixed', bottom: 16, right: 16, zIndex: 999999,
                 width: isOpen ? 'min(420px, calc(100vw - 32px))' : 0,
-                height: isOpen ? 'min(580px, calc(100dvh - 32px))' : 0,
+                height: isOpen ? 'min(610px, calc(100dvh - 32px))' : 0,
                 opacity: isOpen ? 1 : 0,
                 pointerEvents: isOpen ? 'all' : 'none',
                 transition: 'width 0.3s ease, height 0.3s ease, opacity 0.25s ease',
@@ -179,22 +227,20 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                 overflow: 'hidden', background: '#0f172a',
                 display: 'flex', flexDirection: 'column',
             }}>
-                {/* Header */}
+                {/* ── HEADER ── */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                    borderBottom: '1px solid rgba(41,128,185,0.2)',
+                    background: 'linear-gradient(135deg, #0d1b2e 0%, #1e293b 100%)',
+                    borderBottom: '1px solid rgba(41,128,185,0.25)',
                     padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
                 }}>
                     <BotIcon width={42} instanceId="hdr" />
-
                     <div style={{ flex: 1 }}>
-                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>ESGAS</div>
-                        <div style={{ color: '#2980B9', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>Asistente ESGAS</div>
+                        <div style={{ color: '#38bdf8', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22C55E', display: 'inline-block', animation: 'esgas-onlinePulse 2s infinite' }} />
-                            En línea · Asistente técnico
+                            En línea · Consulta lo que necesitas
                         </div>
                     </div>
-
                     <button
                         onClick={() => setIsOpen(false)}
                         style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', padding: '6px 9px', fontSize: 15, lineHeight: 1, transition: 'background 0.15s, color 0.15s' }}
@@ -204,26 +250,90 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     >✕</button>
                 </div>
 
-                {/* Messages */}
+                {/* ── MESSAGES ── */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 12, scrollbarWidth: 'thin', scrollbarColor: 'rgba(41,128,185,0.2) transparent' }}>
                     {messages.map((msg, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 8 }}>
-                            {msg.role === 'assistant' && (
-                                <BotIcon width={30} instanceId={`msg${i}`} />
+                        <div key={i}>
+                            <div style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 8 }}>
+                                {msg.role === 'assistant' && <BotIcon width={30} instanceId={`msg${i}`} />}
+                                <div
+                                    style={{
+                                        maxWidth: '78%', padding: '10px 14px',
+                                        borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                                        background: msg.role === 'user'
+                                            ? 'linear-gradient(135deg, #1A4F8A, #2980B9)'
+                                            : 'rgba(255,255,255,0.07)',
+                                        border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.08)' : 'none',
+                                        color: '#fff', fontSize: 13.5, lineHeight: 1.6, wordBreak: 'break-word',
+                                    }}
+                                    dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                                />
+                            </div>
+
+                            {/* ── PRODUCT CARDS ── */}
+                            {msg.cards && msg.cards.length > 0 && (
+                                <div style={{ marginLeft: 38, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {msg.cards.map((card, ci) => (
+                                        <div key={ci} style={{
+                                            background: 'rgba(26,79,138,0.18)',
+                                            border: '1px solid rgba(41,128,185,0.35)',
+                                            borderRadius: 12, padding: '10px 12px',
+                                        }}>
+                                            <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, marginBottom: 2 }}>
+                                                {card.name || card.ref}
+                                            </div>
+                                            {card.name && (
+                                                <div style={{ color: '#94a3b8', fontSize: 11, marginBottom: 6 }}>
+                                                    Ref: {card.ref}
+                                                </div>
+                                            )}
+                                            <div style={{
+                                                fontSize: 11, marginBottom: 8,
+                                                color: stockColor(card.stock),
+                                                display: 'flex', alignItems: 'center', gap: 4,
+                                            }}>
+                                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: stockColor(card.stock), display: 'inline-block', flexShrink: 0 }} />
+                                                {stockLabel(card.stock)}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                <a
+                                                    href={card.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{
+                                                        background: 'linear-gradient(135deg, #1A4F8A, #2980B9)',
+                                                        color: '#fff', textDecoration: 'none',
+                                                        padding: '6px 12px', borderRadius: 8,
+                                                        fontSize: 12, fontWeight: 600,
+                                                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                    }}
+                                                >
+                                                    🔗 Ver ficha
+                                                </a>
+                                                <a
+                                                    href="https://b2b.esgas.es/carrito"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{
+                                                        background: 'rgba(255,255,255,0.08)',
+                                                        color: '#e2e8f0', textDecoration: 'none',
+                                                        padding: '6px 12px', borderRadius: 8,
+                                                        fontSize: 12, fontWeight: 600,
+                                                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                        border: '1px solid rgba(255,255,255,0.12)',
+                                                    }}
+                                                >
+                                                    🛒 Ir al carrito
+                                                </a>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
-                            <div
-                                style={{
-                                    maxWidth: '78%', padding: '10px 14px',
-                                    borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                                    background: msg.role === 'user' ? 'linear-gradient(135deg, #1A4F8A, #2980B9)' : 'rgba(255,255,255,0.07)',
-                                    border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.08)' : 'none',
-                                    color: '#fff', fontSize: 13.5, lineHeight: 1.6, wordBreak: 'break-word',
-                                }}
-                                dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                            />
                         </div>
                     ))}
 
+                    {/* ── LOADING ── */}
                     {isLoading && (
                         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
                             <BotIcon width={30} instanceId="ld" />
@@ -237,23 +347,53 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input */}
+                {/* ── QUICK REPLIES ── */}
+                {showQuickReplies && messages.length <= 1 && !isLoading && (
+                    <div style={{ padding: '0 12px 10px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {QUICK_REPLIES.map((qr) => (
+                            <button
+                                key={qr}
+                                onClick={() => sendMessage(qr)}
+                                style={{
+                                    background: 'rgba(41,128,185,0.12)',
+                                    border: '1px solid rgba(41,128,185,0.3)',
+                                    borderRadius: 20, color: '#38bdf8',
+                                    fontSize: 11, fontWeight: 500,
+                                    padding: '5px 12px', cursor: 'pointer',
+                                    transition: 'all 0.15s', whiteSpace: 'nowrap',
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(41,128,185,0.25)'; e.currentTarget.style.borderColor = 'rgba(41,128,185,0.6)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(41,128,185,0.12)'; e.currentTarget.style.borderColor = 'rgba(41,128,185,0.3)'; }}
+                            >
+                                {qr}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* ── INPUT ── */}
                 <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 8, flexShrink: 0 }}>
                     <input
                         ref={inputRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Escribe tu consulta aquí..."
+                        placeholder="Escribe tu consulta..."
                         disabled={isLoading}
                         style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 13.5, padding: '10px 14px', outline: 'none', transition: 'border-color 0.15s' }}
                         onFocus={(e) => (e.target.style.borderColor = 'rgba(41,128,185,0.5)')}
                         onBlur={(e) => (e.target.style.borderColor = 'rgba(255,255,255,0.1)')}
                     />
                     <button
-                        onClick={sendMessage}
+                        onClick={() => sendMessage()}
                         disabled={isLoading || !input.trim()}
-                        style={{ width: 42, height: 42, borderRadius: 12, border: 'none', cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer', background: isLoading || !input.trim() ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #1A4F8A, #2980B9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', opacity: isLoading || !input.trim() ? 0.45 : 1 }}
+                        style={{
+                            width: 42, height: 42, borderRadius: 12, border: 'none',
+                            cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer',
+                            background: isLoading || !input.trim() ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #1A4F8A, #2980B9)',
+                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0, transition: 'all 0.15s', opacity: isLoading || !input.trim() ? 0.45 : 1,
+                        }}
                         aria-label="Enviar"
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -263,9 +403,9 @@ export default function Chatbot({ embedMode = false }: { embedMode?: boolean }) 
                     </button>
                 </div>
 
-                {/* Footer */}
+                {/* ── FOOTER ── */}
                 <div style={{ textAlign: 'center', padding: '4px 12px 10px', fontSize: 10, color: 'rgba(255,255,255,0.22)', flexShrink: 0 }}>
-                    ESGAS · C/ Estrella Polar 5, Molina de Segura, Murcia · +34 968 676 983
+                    ESGAS · C/ Estrella Polar 5, Molina de Segura · +34 968 676 983
                 </div>
             </div>
 
